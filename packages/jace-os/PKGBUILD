@@ -24,7 +24,7 @@ depends=(
   polkit polkit-gnome sudo networkmanager network-manager-applet nm-connection-editor
   bluez bluez-utils blueman pipewire pipewire-pulse pipewire-alsa wireplumber
   pavucontrol brightnessctl playerctl power-profiles-daemon
-  pacman-contrib archlinux-keyring flatpak curl pciutils less base-devel
+  pacman-contrib archlinux-keyring flatpak curl pciutils less base-devel squashfs-tools fuse2 shared-mime-info
   # Everyday apps
   foot thunar thunar-volman thunar-archive-plugin file-roller gvfs gvfs-mtp tumbler
   gnome-text-editor loupe gnome-calculator gnome-system-monitor mpv

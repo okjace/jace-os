@@ -19,3 +19,5 @@ audio/flac=mpv.desktop
 audio/ogg=mpv.desktop
 x-scheme-handler/jacestore=jace-store.desktop
 x-scheme-handler/jacesocial=jace-social.desktop
+application/vnd.appimage=jace-appimage.desktop
+application/x-iso9660-appimage=jace-appimage.desktop

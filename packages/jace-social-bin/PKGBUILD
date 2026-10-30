@@ -16,17 +16,24 @@ arch=(x86_64)
 url="https://github.com/${_repo}"
 license=(MIT)
 depends=(glibc hicolor-icon-theme)
-provides=($_cmd)
-conflicts=($_cmd)
+makedepends=(squashfs-tools python)
+provides=("$_cmd")
+conflicts=("$_cmd")
 options=(!strip !debug)
 source=("${_stem}-${pkgver}.AppImage::https://github.com/${_repo}/releases/download/${_tag}/${_stem}-${pkgver}-x86_64.AppImage")
 noextract=("${_stem}-${pkgver}.AppImage")
 sha256sums=('SKIP')
 
 prepare() {
+  # Unpack the AppImage's squashfs without running it: it starts right after the ELF runtime.
+  local file="${_stem}-${pkgver}.AppImage" offset
+  offset=$(python3 -c 'import struct,sys
+d = open(sys.argv[1], "rb").read(4096)
+shoff = struct.unpack_from("<Q", d, 0x28)[0]
+size, num = struct.unpack_from("<HH", d, 0x3A)
+print(shoff + size * num)' "$file")
   rm -rf squashfs-root
-  chmod +x "${_stem}-${pkgver}.AppImage"
-  "./${_stem}-${pkgver}.AppImage" --appimage-extract >/dev/null
+  unsquashfs -q -n -o "$offset" -d squashfs-root "$file"
 }
 
 package() {

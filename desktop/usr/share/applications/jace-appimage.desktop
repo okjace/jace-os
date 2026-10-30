@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=AppImage
+GenericName=Run an AppImage
+Comment=Open AppImage apps; right-click one to install it
+Exec=jace-appimage open %f
+Icon=application-x-executable
+Terminal=false
+Type=Application
+NoDisplay=true
+MimeType=application/vnd.appimage;application/x-iso9660-appimage;
+Actions=install;
+
+[Desktop Action install]
+Name=Install
+Exec=jace-appimage install %f
