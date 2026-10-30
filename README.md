@@ -1,4 +1,4 @@
-<p align="center"><img src="site/img/logo.svg" width="112" alt="Jace OS logo"></p>
+![Jace OS logo](https://okjace.github.io/jace-os/img/apple-touch-icon.png)
 
 # Jace OS
 
