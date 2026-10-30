@@ -36,6 +36,10 @@ cp -a "$releng/." "$profile/"
 # ...and everything else from ours.
 cp -a archiso/. "$profile/"
 
+# Our boot menu (Try / Install / safe graphics) replaces Arch's entries.
+rm -f "$profile/efiboot/loader/entries/01-archiso-linux.conf" \
+      "$profile/efiboot/loader/entries/02-archiso-speech-linux.conf"
+
 # No root auto-login on tty1: the Jace OS login screen (greetd) uses it.
 rm -f "$profile/airootfs/etc/systemd/system/getty@tty1.service.d/autologin.conf"
 
@@ -51,7 +55,7 @@ sed -Ei '/^HOOKS=/ s/\budev\b/udev plymouth/' "$profile/airootfs/etc/mkinitcpio.
 find "$profile/efiboot" "$profile/syslinux" "$profile/grub" -type f \( -name '*.conf' -o -name '*.cfg' \) 2>/dev/null |
   while read -r f; do
     sed -Ei -e 's/Arch Linux/Jace OS/g' \
-      -e '/^\s*(options|APPEND|linux)\s.*archisobasedir/ s/$/ quiet splash/' "$f"
+      -e '/^\s*(options|APPEND|linux)\s.*archisobasedir/ { / splash/! s/$/ quiet splash/ }' "$f"
   done
 echo "==> Building the ISO (this takes a while)"
 rm -rf "$work/iso"

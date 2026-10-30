@@ -1,28 +1,76 @@
-# Builds the Jace OS ISO. Push a tag like v1.0.0 to publish a release with it,
-# or run it by hand to get the ISO as a workflow artifact.
+# Builds the Jace OS ISO (try it from a USB stick, or install it) and, when the build
+# succeeds, publishes it as a GitHub release and then on Jace Store.
+#
+# Runs:
+#   - after the Packages workflow finishes for a push to main (so the ISO has that change)
+#   - every Monday, to pick up a week of Jace app, Zen Browser and Arch updates
+#   - when you push a tag like v1.2.0 (that becomes the version)
+#   - by hand (Actions → ISO → Run workflow)
+# Other releases are versioned by date: 2026.10.30, then 2026.10.30.2 the same day.
 name: ISO
 
 on:
+  workflow_run:
+    workflows: [Packages]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "0 9 * * 1"
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a release (and to Jace Store) if the build works"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
+concurrency:
+  group: iso
+  cancel-in-progress: false
+
 jobs:
   iso:
+    # After Packages: only for pushes (not its hourly app checks), and only if it worked.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
       options: --privileged
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      publish: ${{ steps.version.outputs.publish }}
     steps:
       - name: Install tools
         run: pacman -Syu --noconfirm --needed archiso git github-cli curl
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Pick the version
+        id: version
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          publish=true
+          [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ inputs.publish }}" = false ] && publish=false
+          if [ "${{ github.ref_type }}" = tag ]; then
+            tag="${{ github.ref_name }}"
+          else
+            base="v$(date -u +%Y.%m.%d)"; tag=$base; n=2
+            while gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; do tag="$base.$n"; n=$((n + 1)); done
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "Building Jace OS ${tag#v} (publish: $publish)"
 
       - name: Get the Jace OS packages
         run: |
@@ -33,11 +81,17 @@ jobs:
       - name: Build the ISO
         run: ./build.sh
 
-      - name: Checksums
-        run: cd out && sha256sum *.iso > SHA256SUMS && cat SHA256SUMS
+      - name: Name and check the ISO
+        run: |
+          cd out
+          tag="${{ steps.version.outputs.tag }}"
+          mv ./*.iso "jace-os-${tag#v}-x86_64.iso"
+          sha256sum ./*.iso > SHA256SUMS
+          cat SHA256SUMS
+          ls -lh
 
-      - name: Upload artifact
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Upload the ISO (when not publishing)
+        if: steps.version.outputs.publish != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: jace-os-iso
@@ -45,20 +99,59 @@ jobs:
             out/*.iso
             out/SHA256SUMS
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish the GitHub release
+        if: steps.version.outputs.publish == 'true'
         run: |
           cd out
-          iso=$(ls *.iso)
+          tag="${{ steps.version.outputs.tag }}"
+          iso=$(ls ./*.iso | head -n1); iso=${iso#./}
           files=("$iso" SHA256SUMS)
+          join=""
           # GitHub release files can be at most 2 GiB: split bigger ISOs.
           if [ "$(stat -c %s "$iso")" -gt 2000000000 ]; then
             split -b 1900M -d -a 1 "$iso" "$iso.part"
             files=("$iso".part* SHA256SUMS)
-            note="The ISO is in parts. Join them first: \`cat $iso.part* > $iso\`"
+            join="**The ISO is in parts.** Download them all and join them first:
+          - Linux and macOS: \`cat $iso.part* > $iso\`
+          - Windows: \`copy /b $iso.part0 + $iso.part1 $iso\`
+          "
           fi
-          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --title "Jace OS ${GITHUB_REF_NAME#v}" \
-            --notes "Download the ISO, write it to a USB stick (balenaEtcher, Rufus or \`dd\`), and boot from it.
-          ${note:-}
+          cat > notes.md <<EOF
+          ## Jace OS ${tag#v}
 
-          Full instructions: https://okjace.github.io/jace-os/#install" "${files[@]}"
+          Try Jace OS from a USB stick, or install it. Write the ISO to a USB stick (8 GB or bigger)
+          with [balenaEtcher](https://etcher.balena.io) or [Rufus](https://rufus.ie), start your
+          computer from it, and pick **Try Jace OS** or **Install Jace OS**.
+
+          $join
+          Includes the newest Jace Launcher, Jace Social, Jace Store and Zen Browser, and installs
+          get the newest versions again while installing.
+
+          Full instructions: https://okjace.github.io/jace-os/#install
+          EOF
+          sed -i 's/^          //' notes.md
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "${{ github.event.workflow_run.head_sha || github.sha }}" \
+            --title "Jace OS ${tag#v}" --notes-file notes.md --generate-notes --latest "${files[@]}"
+
+  store:
+    # Publish the new release on Jace Store as links to the GitHub downloads (no re-upload).
+    # Needs the JACE_STORE_TOKEN repository secret; skipped with a warning if it isn't set.
+    needs: iso
+    if: needs.iso.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    env:
+      JACE_STORE_TOKEN: ${{ secrets.JACE_STORE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Publish to Jace Store
+        run: |
+          if [ -z "$JACE_STORE_TOKEN" ]; then
+            echo "::warning::JACE_STORE_TOKEN secret not set - skipping Jace Store"
+            exit 0
+          fi
+          python3 tools/publish-store.py "${{ needs.iso.outputs.tag }}"

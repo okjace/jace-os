@@ -1,5 +1,9 @@
 #!/bin/sh
-# "Install Jace OS" on the live USB: walks through archinstall with the Jace OS
-# preset (Jace OS repository, desktop, apps and automatic updates already chosen).
-# You only pick the disk, language, keyboard, your name and password.
-exec foot --app-id jace-install --title "Install Jace OS" -e sudo /usr/lib/jace-os/install-jace-os
+# "Install Jace OS" on the live USB.
+#   jace-install              the Jace OS installer (erase a disk and install, optional encryption)
+#   jace-install --advanced   archinstall with the Jace OS preset, for dual-booting or your own
+#                             partitions: pick the disk layout, language, user and time zone yourself
+if [ "$1" = --advanced ]; then
+  exec foot --app-id jace-install --title "Install Jace OS (advanced)" -e sudo /usr/lib/jace-os/install-jace-os
+fi
+exec jace-installer

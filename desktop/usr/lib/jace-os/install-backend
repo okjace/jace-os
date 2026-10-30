@@ -1,0 +1,222 @@
+#!/bin/bash
+# Installs Jace OS onto a whole disk. Run as root by the installer (jace-installer),
+# with its choices as JSON on stdin:
+#
+#   {"disk": "/dev/nvme0n1", "encrypt": false, "disk_password": "",
+#    "fullname": "Jace", "username": "jace", "password": "...", "hostname": "jace-pc",
+#    "autologin": false, "locale": "en_US.UTF-8", "keyboard": "us", "timezone": "America/New_York"}
+#
+# It prints "@progress <percent> <what it's doing>" lines for the installer's progress
+# bar, and everything else as the log. EVERYTHING ON THE DISK IS ERASED.
+#
+# Layout: UEFI = 1 GiB EFI system partition (/boot, systemd-boot) + ext4 root;
+# BIOS = 1 MiB BIOS boot partition (GRUB) + ext4 root. The root can be LUKS2-encrypted.
+set -euo pipefail
+
+progress() { echo "@progress $1 $2"; }
+fail() { echo "@error $*"; exit 1; }
+trap 'fail "The install stopped at line $LINENO. See the log for details."' ERR
+
+[ "$(id -u)" -eq 0 ] || fail "The installer needs to run as root."
+
+# --- the choices ------------------------------------------------------------------------------
+config=$(cat)
+get() { python3 -c 'import json,sys; v=json.loads(sys.argv[1]).get(sys.argv[2], ""); print(str(v).lower() if isinstance(v, bool) else v)' "$config" "$1"; }
+disk=$(get disk)
+encrypt=$(get encrypt)
+disk_password=$(get disk_password)
+fullname=$(get fullname)
+username=$(get username)
+password=$(get password)
+hostname=$(get hostname)
+autologin=$(get autologin)
+locale=$(get locale)
+keyboard=$(get keyboard)
+timezone=$(get timezone)
+
+[ -b "$disk" ] || fail "There's no disk called $disk."
+[[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || fail "That username isn't valid."
+[[ "$hostname" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || fail "That computer name isn't valid."
+[ -n "$password" ] || fail "Choose a password."
+[ -e "/usr/share/zoneinfo/$timezone" ] || timezone=UTC
+[ "$encrypt" != true ] || [ -n "$disk_password" ] || fail "Choose a password for the encrypted disk."
+# Never touch the USB stick Jace OS is running from.
+live=$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)
+if [ -n "$live" ] && [ "$(lsblk -no PKNAME "$live" 2>/dev/null | head -n1)" = "$(basename "$disk")" ]; then
+  fail "That's the USB stick Jace OS is running from."
+fi
+
+uefi=no
+[ -d /sys/firmware/efi ] && uefi=yes
+target=/mnt/jace-os
+repo_server="https://github.com/okjace/jace-os/releases/download/repo"
+
+progress 2 "Checking the internet connection"
+curl -fsI --max-time 15 https://geo.mirror.pkgbuild.com >/dev/null ||
+  curl -fsI --max-time 15 https://github.com >/dev/null ||
+  fail "Jace OS needs the internet to install. Connect to Wi-Fi and try again."
+
+# --- the disk ---------------------------------------------------------------------------------
+progress 5 "Preparing $disk"
+umount -R "$target" 2>/dev/null || true
+cryptsetup close cryptroot 2>/dev/null || true
+swapoff -a 2>/dev/null || true
+for part in $(lsblk -nrpo NAME "$disk" | tail -n +2); do umount "$part" 2>/dev/null || true; done
+wipefs -af "$disk" >/dev/null
+sgdisk --zap-all "$disk" >/dev/null
+if [ "$uefi" = yes ]; then
+  sgdisk -n 1:0:+1G -t 1:ef00 -c 1:EFI -n 2:0:0 -t 2:8304 -c 2:"Jace OS" "$disk" >/dev/null
+else
+  sgdisk -n 1:0:+1M -t 1:ef02 -c 1:BIOS -n 2:0:0 -t 2:8304 -c 2:"Jace OS" "$disk" >/dev/null
+fi
+partprobe "$disk" 2>/dev/null || true
+udevadm settle
+mapfile -t parts < <(lsblk -nrpo NAME,TYPE "$disk" | awk '$2 == "part" {print $1}')
+[ ${#parts[@]} -ge 2 ] || fail "Couldn't create the partitions on $disk."
+boot_part=${parts[0]} root_part=${parts[1]}
+
+root_dev=$root_part
+if [ "$encrypt" = true ]; then
+  progress 8 "Encrypting the disk"
+  printf '%s' "$disk_password" | cryptsetup luksFormat --type luks2 --batch-mode --key-file - "$root_part"
+  printf '%s' "$disk_password" | cryptsetup open --key-file - "$root_part" cryptroot
+  root_dev=/dev/mapper/cryptroot
+fi
+
+progress 10 "Formatting"
+mkfs.ext4 -F -L "Jace OS" "$root_dev" >/dev/null
+mount "$root_dev" "$target" --mkdir
+if [ "$uefi" = yes ]; then
+  mkfs.fat -F 32 -n EFI "$boot_part" >/dev/null
+  mount "$boot_part" "$target/boot" --mkdir
+fi
+
+# --- the system -------------------------------------------------------------------------------
+progress 12 "Getting ready to download Jace OS"
+conf=$(mktemp)
+cp /etc/pacman.conf "$conf"
+sed -i 's/^#\?ParallelDownloads.*/ParallelDownloads = 8/' "$conf"
+printf '\n[jace-os]\nSigLevel = Optional TrustAll\nServer = %s\n' "$repo_server" >> "$conf"
+pacman-key --init >/dev/null 2>&1 || true
+pacman-key --populate archlinux >/dev/null 2>&1 || true
+pacman --config "$conf" -Sy --noconfirm --needed archlinux-keyring >/dev/null 2>&1 ||
+  fail "Couldn't reach the Jace OS and Arch Linux package servers."
+
+ucode=()
+grep -q GenuineIntel /proc/cpuinfo && ucode=(intel-ucode)
+grep -q AuthenticAMD /proc/cpuinfo && ucode=(amd-ucode)
+packages=(base linux linux-firmware sof-firmware "${ucode[@]}" mkinitcpio sudo nano
+          jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin
+          mesa vulkan-radeon vulkan-intel vulkan-nouveau intel-media-driver libva-mesa-driver
+          btrfs-progs dosfstools exfatprogs ntfs-3g)
+[ "$encrypt" = true ] && packages+=(cryptsetup)
+[ "$uefi" = yes ] && packages+=(efibootmgr) || packages+=(grub)
+
+progress 15 "Downloading and installing Jace OS (this is the long part)"
+# pacstrap prints one line per package; turn that into progress between 15% and 80%.
+total=$(pacman --config "$conf" -Sp --print-format '%n' "${packages[@]}" 2>/dev/null | wc -l)
+[ "$total" -gt 0 ] || total=900
+n=0
+trap - ERR
+if ! pacstrap -C "$conf" -K "$target" "${packages[@]}" 2>&1 | while IFS= read -r line; do
+  echo "$line"
+  case "$line" in
+    *"installing "*)
+      n=$((n + 1))
+      pct=$((15 + n * 65 / total)); [ $pct -gt 80 ] && pct=80
+      progress "$pct" "Installing ${line##*installing }" ;;
+  esac
+done; then
+  fail "Downloading Jace OS failed. Check the internet connection and try again."
+fi
+trap 'fail "The install stopped at line $LINENO. See the log for details."' ERR
+
+progress 81 "Setting up the system"
+genfstab -U "$target" >> "$target/etc/fstab"
+cp "$conf" "$target/etc/pacman.conf"
+sed -i 's/^ParallelDownloads.*/ParallelDownloads = 5/' "$target/etc/pacman.conf"
+
+# Language, keyboard, time zone, computer name
+sed -i "s/^#\(${locale//./\\.} \)/\1/" "$target/etc/locale.gen"
+grep -q "^en_US.UTF-8" "$target/etc/locale.gen" || sed -i 's/^#\(en_US\.UTF-8 \)/\1/' "$target/etc/locale.gen"
+echo "LANG=$locale" > "$target/etc/locale.conf"
+console=$keyboard
+case "$keyboard" in gb) console=uk ;; latam) console=la-latin1 ;; ara|in|cn|jp|kr|il|gr|ru|ua) console=us ;; esac
+echo "KEYMAP=$console" > "$target/etc/vconsole.conf"
+mkdir -p "$target/etc/X11/xorg.conf.d"
+printf 'Section "InputClass"\n  Identifier "system-keyboard"\n  MatchIsKeyboard "on"\n  Option "XkbLayout" "%s"\nEndSection\n' \
+  "$keyboard" > "$target/etc/X11/xorg.conf.d/00-keyboard.conf"
+ln -sf "/usr/share/zoneinfo/$timezone" "$target/etc/localtime"
+echo "$hostname" > "$target/etc/hostname"
+printf '127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s.localdomain %s\n' "$hostname" "$hostname" > "$target/etc/hosts"
+
+arch-chroot "$target" /bin/bash -e <<CHROOT
+locale-gen >/dev/null
+hwclock --systohc || true
+systemctl enable systemd-timesyncd.service >/dev/null 2>&1 || true
+CHROOT
+
+progress 84 "Creating your account"
+arch-chroot "$target" useradd -m -G wheel,video,audio,input,network -s /bin/bash -c "$fullname" "$username"
+printf '%s:%s\n' "$username" "$password" | arch-chroot "$target" chpasswd
+arch-chroot "$target" passwd -l root >/dev/null
+echo '%wheel ALL=(ALL:ALL) ALL' > "$target/etc/sudoers.d/10-wheel"
+chmod 440 "$target/etc/sudoers.d/10-wheel"
+# The keyboard layout for the desktop (labwc), same as Settings → Keyboard writes.
+home="$target/home/$username"
+install -d "$home/.config/labwc"
+echo "XKB_DEFAULT_LAYOUT=$keyboard" > "$home/.config/labwc/environment"
+arch-chroot "$target" chown -R "$username:$username" "/home/$username/.config"
+if [ "$autologin" = true ]; then
+  printf '\n[initial_session]\ncommand = "jace-session"\nuser = "%s"\n' "$username" >> "$target/etc/greetd/jace-os.toml"
+fi
+
+progress 87 "Setting up the boot splash and the start-up files"
+hooks="base udev plymouth autodetect microcode modconf kms keyboard keymap consolefont block"
+[ "$encrypt" = true ] && hooks="$hooks encrypt"
+hooks="$hooks filesystems fsck"
+echo "HOOKS=($hooks)" > "$target/etc/mkinitcpio.conf.d/jace-os.conf"
+arch-chroot "$target" plymouth-set-default-theme jace-os
+arch-chroot "$target" mkinitcpio -P
+
+progress 92 "Installing the boot loader"
+root_uuid=$(blkid -s UUID -o value "$root_dev")
+cmdline="root=UUID=$root_uuid rw quiet splash"
+if [ "$encrypt" = true ]; then
+  cmdline="cryptdevice=UUID=$(blkid -s UUID -o value "$root_part"):cryptroot root=/dev/mapper/cryptroot rw quiet splash"
+fi
+if [ "$uefi" = yes ]; then
+  arch-chroot "$target" bootctl install --esp-path=/boot >/dev/null
+  printf 'default jace-os.conf\ntimeout 3\nconsole-mode max\neditor no\n' > "$target/boot/loader/loader.conf"
+  printf 'title   Jace OS\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions %s\n' "$cmdline" \
+    > "$target/boot/loader/entries/jace-os.conf"
+  printf 'title   Jace OS (fallback)\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux-fallback.img\noptions %s\n' \
+    "${cmdline/ quiet splash/}" > "$target/boot/loader/entries/jace-os-fallback.conf"
+  arch-chroot "$target" systemctl enable systemd-boot-update.service >/dev/null 2>&1 || true
+else
+  arch-chroot "$target" grub-install --target=i386-pc "$disk"
+  sed -i -e 's/^GRUB_DISTRIBUTOR=.*/GRUB_DISTRIBUTOR="Jace OS"/' \
+         -e 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' \
+         -e 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' "$target/etc/default/grub"
+  [ "$encrypt" = true ] &&
+    sed -i "s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"${cmdline% rw quiet splash}\"|" "$target/etc/default/grub"
+  arch-chroot "$target" grub-mkconfig -o /boot/grub/grub.cfg
+fi
+
+progress 95 "Getting the newest Jace apps and turning everything on"
+arch-chroot "$target" /usr/lib/jace-os/refresh-apps || true
+arch-chroot "$target" systemctl enable greetd.service NetworkManager.service bluetooth.service \
+  power-profiles-daemon.service jace-update.timer clamav-freshclam.service jace-av-ready.path \
+  clamav-daemon.socket clamav-daemon.service clamav-clamonacc.service jace-av-scan.timer >/dev/null 2>&1 || true
+# Wi-Fi networks you joined on the live USB come along.
+if compgen -G "/etc/NetworkManager/system-connections/*" >/dev/null; then
+  cp -a /etc/NetworkManager/system-connections/. "$target/etc/NetworkManager/system-connections/"
+fi
+
+progress 98 "Finishing up"
+sync
+umount -R "$target"
+[ "$encrypt" = true ] && cryptsetup close cryptroot
+rm -f "$conf"
+progress 100 "Jace OS is installed"
+echo "@done"

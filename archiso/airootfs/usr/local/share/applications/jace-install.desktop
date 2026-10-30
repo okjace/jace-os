@@ -1,9 +1,8 @@
 [Desktop Entry]
 Name=Install Jace OS
 Comment=Install Jace OS on this computer
-Exec=jace-install
+Exec=jace-installer
 Icon=jace-os
 Terminal=false
 Type=Application
 Categories=System;
-OnlyShowIn=JaceOS;

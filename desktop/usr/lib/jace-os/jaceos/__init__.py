@@ -18,7 +18,7 @@ STORE_URL = "https://jace-store-deb.vercel.app"
 # JACE_OS_ROOT lets you run these apps from a checkout of the repository (it points at desktop/).
 ROOT = Path(os.environ.get("JACE_OS_ROOT", "/"))
 SHARE = ROOT / "usr/share/jace-os"
-LOGO = SHARE / "branding" / "jace-os-logo.svg"
+LOGO = SHARE / "branding" / "jace-os-logo.png"
 BACKGROUNDS = ROOT / "usr/share/backgrounds/jace-os"
 
 # The Jace apps that come with Jace OS: (package, command, name, what it is).

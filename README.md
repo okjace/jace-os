@@ -34,11 +34,20 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 | Ctrl+Shift+Esc | System Monitor |
 | Ctrl+Alt+T | Terminal |
 
-## Installing
+## Trying and installing
 
-1. Download the ISO from the [releases](https://github.com/okjace/jace-os/releases/latest) and write it to a USB stick with balenaEtcher, Rufus or `dd`.
-2. Boot from it. You get the live desktop and the welcome app.
-3. Click **Install Jace OS**. It runs `archinstall` with the Jace OS preset: you pick the disk, language, keyboard, user and time zone, and the rest is chosen for you. The installer gets the newest Jace apps and Zen Browser, even releases from the last hour.
+1. Download the ISO from the [releases](https://github.com/okjace/jace-os/releases/latest) and write it to a USB stick (8 GB or bigger) with balenaEtcher, Rufus or `dd`.
+2. Start your computer from the USB stick. The boot menu has:
+   - **Try Jace OS (without installing)**: the full desktop running from the USB stick. Nothing on the computer changes.
+   - **Install Jace OS**: the same, with the installer opened right away.
+   - **Try Jace OS (safe graphics)**: if the screen stays black or flickers.
+3. Click **Install Jace OS** (in the welcome app, or the start menu). The installer asks for:
+   - your language, keyboard and time zone
+   - the disk to install on (it's erased), with optional encryption
+   - your name, username, computer name and password
+
+   Then it installs Jace OS, with the newest Jace apps and Zen Browser, in 10 to 20 minutes. You need an internet connection.
+4. To keep Windows or another system alongside, or to pick your own partitions, use **Advanced install** on the installer's first page. It opens archinstall with the Jace OS preset.
 
 ### Already on Arch
 
@@ -61,7 +70,7 @@ Then choose **Jace OS** on the login screen.
 | Folder | What's in it |
 |---|---|
 | `desktop/` | Everything the `jace-os` package installs, laid out like `/`: the labwc, Waybar, mako and fuzzel configs (`usr/share/jace-os/xdg`), the Jace OS apps (`usr/lib/jace-os/jaceos`), scripts (`usr/bin`), the Plymouth theme, the login screen, wallpapers, the update timer and the installer preset. |
-| `desktop/usr/lib/jace-os/jaceos/` | The Python + GTK 4 + libadwaita apps: `settings.py`, `menu.py` (start menu), `welcome.py`, `account.py` (Sign in with Jace), `updates.py`, `antivirus.py`, `store.py` (Jace Store, Flathub and Arch in Settings) and `appimage.py`. |
+| `desktop/usr/lib/jace-os/jaceos/` | The Python + GTK 4 + libadwaita apps: `settings.py`, `menu.py` (start menu), `welcome.py`, `installer.py` (with the `install-backend` script), `account.py` (Sign in with Jace), `updates.py`, `antivirus.py`, `store.py` (Jace Store, Flathub and Arch in Settings) and `appimage.py`. |
 | `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin` and `zen-browser-bin`, which unpack each app's official release. |
 | `archiso/` | The live USB profile (packages, live user and auto-login). `build.sh` combines it with archiso's `releng` boot setup. |
 | `site/` | The website on GitHub Pages. |
@@ -80,7 +89,7 @@ sudo ./build.sh                  # the ISO into out/
 GitHub Actions does both:
 
 - **Packages** (`.github/workflows/packages.yml`) runs every hour and on every push. It only builds packages whose version changed (a new Jace app or Zen Browser release, or a Jace OS commit) and publishes the pacman repository as the `repo` release. An app repository can also trigger it right away with a `repository_dispatch` of type `app-released`.
-- **ISO** (`.github/workflows/iso.yml`) builds the ISO when you push a `v*` tag and attaches it to that release.
+- **ISO** (`.github/workflows/iso.yml`) builds the ISO after every change to Jace OS (once Packages has published it), every Monday, when you push a `v*` tag, or by hand. When the build works, it publishes a GitHub release (versioned by date, like `v2026.10.30`, or by your tag), then publishes that release on [Jace Store](https://jace-store-deb.vercel.app/project/jace-os) as links to the GitHub downloads (`tools/publish-store.py`, needs the `JACE_STORE_TOKEN` secret).
 - **Website** (`.github/workflows/pages.yml`) publishes `site/`.
 
 ### Trying the apps without installing

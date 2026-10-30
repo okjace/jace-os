@@ -17,6 +17,13 @@ from jaceos import JACE_APPS, LOGO, account, background, config_dir, is_live, lo
 DONE = "welcome-done"
 
 
+def install_mode() -> bool:
+    try:
+        return "jace.install=1" in open("/proc/cmdline").read().split()
+    except OSError:
+        return False
+
+
 class WelcomeWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Welcome to Jace OS", default_width=760, default_height=560)
@@ -158,7 +165,7 @@ class WelcomeWindow(Adw.ApplicationWindow):
     def page_finish(self):
         if self.live:
             b = Gtk.Button(label="Install Jace OS", css_classes=["pill", "suggested-action"], halign=Gtk.Align.CENTER)
-            b.connect("clicked", lambda *_: spawn(["jace-install"]))
+            b.connect("clicked", lambda *_: spawn(["jace-installer"]))
             return self.status("Try it, then install it",
                                "You're running Jace OS from a USB stick. Nothing is saved until you install it.",
                                b, paintable_logo=True)
@@ -197,6 +204,10 @@ class WelcomeApp(Adw.Application):
 
     def do_command_line(self, cmdline):
         args = cmdline.get_arguments()[1:]
+        if "--autostart" in args and is_live() and install_mode():
+            # Booted with "Install Jace OS" from the USB's boot menu: go straight to the installer.
+            spawn(["jace-installer"])
+            return 0
         if "--autostart" in args and (config_dir() / DONE).exists() and not is_live():
             return 0
         win = self.get_active_window() or WelcomeWindow(self)
