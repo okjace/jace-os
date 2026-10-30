@@ -2,7 +2,7 @@
 
   jace-settings [--page <name>]
 
-Pages: account, updates, network, bluetooth, display, sound, appearance, menu,
+Pages: account, updates, security, network, bluetooth, display, sound, appearance, menu,
 windows, keyboard, power, datetime, apps, users, about.
 """
 import json
@@ -22,12 +22,13 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import store  # noqa: E402
+from jaceos import antivirus, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
     ("account", "Jace account", "avatar-default-symbolic"),
     ("updates", "Updates", "software-update-available-symbolic"),
+    ("security", "Virus protection", "security-high-symbolic"),
     ("network", "Wi-Fi & network", "network-wireless-symbolic"),
     ("bluetooth", "Bluetooth", "bluetooth-symbolic"),
     ("display", "Display", "video-display-symbolic"),
@@ -87,6 +88,24 @@ def link_row(title, subtitle, cmd_or_url, icon=None):
     else:
         row.connect("activated", lambda *_: spawn(cmd_or_url))
     return row
+
+
+def status_header(icon, title, description="", child=None, fallback="dialog-information-symbolic"):
+    """A big icon, a title and a line of text at the top of a page."""
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=6, margin_bottom=12)
+    theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+    box.append(Gtk.Image(icon_name=icon if theme.has_icon(icon) else fallback, pixel_size=64,
+                         css_classes=["dim-label"]))
+    box.append(Gtk.Label(label=title, css_classes=["title-2"], wrap=True, justify=Gtk.Justification.CENTER))
+    if description:
+        box.append(Gtk.Label(label=description, css_classes=["dim-label"], wrap=True,
+                             justify=Gtk.Justification.CENTER))
+    if child:
+        child.set_margin_top(6)
+        box.append(child)
+    g = Adw.PreferencesGroup()
+    g.add(box)
+    return g
 
 
 def switch_row(title, subtitle, active, on_change):
@@ -315,14 +334,10 @@ class SettingsWindow(Adw.ApplicationWindow):
 
     def page_updates(self):
         page = Adw.PreferencesPage()
-        self.updates_page = page
-        self.updates_status = Adw.StatusPage(icon_name="content-loading-symbolic", title="Checking for updates…",
-                                             css_classes=["compact"])
-        spinner = Adw.Spinner(halign=Gtk.Align.CENTER) if hasattr(Adw, "Spinner") else Gtk.Spinner(spinning=True)
-        g = Adw.PreferencesGroup()
-        g.add(self.updates_status)
-        g.add(spinner)
-        page.add(g)
+        spinner = Adw.Spinner(halign=Gtk.Align.CENTER, width_request=32, height_request=32) \
+            if hasattr(Adw, "Spinner") else Gtk.Spinner(spinning=True, halign=Gtk.Align.CENTER)
+        page.add(status_header("software-update-available-symbolic", "Checking for updates…",
+                               "Jace OS, the Jace apps, Zen Browser and Flatpaks", spinner))
         background(updates.check, self._show_updates)
         return page
 
@@ -344,12 +359,6 @@ class SettingsWindow(Adw.ApplicationWindow):
             g.add(banner)
             page.add(g)
 
-        head = Adw.StatusPage(
-            icon_name="emblem-ok-symbolic" if n == 0 else "software-update-available-symbolic",
-            title="You're up to date" if n == 0 else f"{n} update{'s' if n != 1 else ''} available",
-            description=(f"Last updated {result['last_update']}" if result["last_update"] else
-                         "Jace OS installs updates by itself, including Linux and security fixes."),
-            css_classes=["compact"])
         actions = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
         check = Gtk.Button(label="Check again", css_classes=["pill"])
         check.connect("clicked", lambda *_: self.show("updates"))
@@ -358,9 +367,11 @@ class SettingsWindow(Adw.ApplicationWindow):
             allb = Gtk.Button(label="Update everything", css_classes=["pill", "suggested-action"])
             allb.connect("clicked", lambda *_: self._run_update(None))
             actions.append(allb)
-        head.set_child(actions)
-        g = Adw.PreferencesGroup()
-        g.add(head)
+        g = status_header(
+            "emblem-ok-symbolic" if n == 0 else "software-update-available-symbolic",
+            "You're up to date" if n == 0 else f"{n} update{'s' if n != 1 else ''} available",
+            (f"Last updated {result['last_update']}" if result["last_update"] else
+             "Jace OS installs updates by itself, including Linux and security fixes."), actions)
         page.add(g)
 
         self.update_log = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR,
@@ -441,6 +452,167 @@ class SettingsWindow(Adw.ApplicationWindow):
             return False
 
         GLib.io_add_watch(proc.stdout, GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, read_line)
+
+    # --- Virus protection ---------------------------------------------------------------------------
+
+    def page_security(self):
+        page = Adw.PreferencesPage()
+        if not antivirus.installed():
+            page.add(group("", None, plain_row(title="ClamAV isn't installed",
+                                                subtitle="Install the clamav package to use virus protection")))
+            return page
+        rt_on, rt_running = antivirus.realtime_enabled(), antivirus.realtime_running()
+        sigs = antivirus.signatures()
+        if rt_running and sigs.get("have") and sigs.get("age_days", 99) < 3:
+            icon, title, desc = "security-high-symbolic", "You're protected", "Real-time protection is on."
+        elif rt_on and not rt_running:
+            icon, title, desc = "security-medium-symbolic", "Starting protection…", \
+                "Downloading virus signatures the first time takes a few minutes."
+        elif not rt_on:
+            icon, title, desc = "security-low-symbolic", "Real-time protection is off", \
+                "Turn it on to scan files as soon as they arrive."
+        else:
+            icon, title, desc = "security-medium-symbolic", "Virus signatures are out of date", \
+                "Click Update signatures, or check your internet connection."
+        page.add(status_header(icon, title, desc, fallback="emblem-ok-symbolic" if "protected" in title
+                               else "dialog-warning-symbolic"))
+
+        sg = Adw.PreferencesGroup(title="Scan", description="Scans run as you, in the background.")
+        self.av_status = Gtk.Label(xalign=0, wrap=True, css_classes=["dim-label"], visible=False)
+        for title_, sub, paths in (
+            ("Quick scan", "Downloads, Desktop, Documents, Applications and startup apps", None),
+            ("Full scan", "Everything in your home folder", [str(Path.home())]),
+        ):
+            sg.add(button_row(title_, sub, "Scan", lambda p=paths: self._av_scan(p or antivirus.quick_scan_paths()),
+                              suggested=paths is None))
+        sg.add(button_row("Scan a folder or file", None, "Choose…", self._av_choose))
+        sg.add(self.av_status)
+        self.av_results = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE,
+                                      visible=False, margin_top=6)
+        sg.add(self.av_results)
+        page.add(sg)
+
+        pg = Adw.PreferencesGroup(title="Protection")
+        pg.add(switch_row("Real-time protection", "Scans files in your home folder as soon as they're downloaded, "
+                          "created or opened, and quarantines threats", rt_on,
+                          lambda on: self._av_helper(["realtime", "on" if on else "off"],
+                                                     "Real-time protection " + ("on" if on else "off"))))
+        last = antivirus.last_scheduled_scan()
+        sub = "Every day, when plugged in"
+        if last:
+            when = GLib.DateTime.new_from_unix_local(last["time"]).format("%b %-d, %H:%M")
+            sub += f" · last scan {when}: " + (f"{last['found']} threat(s) quarantined" if last["found"]
+                                                 else "nothing found")
+        pg.add(switch_row("Scan every day", sub, antivirus.autoscan_enabled(),
+                          lambda on: self._av_helper(["autoscan", "on" if on else "off"],
+                                                     "Daily scans " + ("on" if on else "off"))))
+        sig_row = plain_row(title="Virus signatures", subtitle=(
+            f"Version {sigs['version']} · {sigs['date']}" if sigs.get("have") else "Not downloaded yet"))
+        b = Gtk.Button(label="Update signatures", valign=Gtk.Align.CENTER)
+        b.connect("clicked", lambda *_: self._av_helper(["update"], "Virus signatures updated"))
+        sig_row.add_suffix(b)
+        pg.add(sig_row)
+        page.add(pg)
+
+        mine = antivirus.user_quarantine()
+        qg = Adw.PreferencesGroup(title="Quarantine", description="Threats are moved here, where they can't run.")
+        for item in mine:
+            row = plain_row(title=Path(item["original"]).name, subtitle=f"{item['virus']} · from {item['original']}")
+            for label, fn, style in (("Restore", self._av_restore, None), ("Delete", self._av_delete,
+                                                                          "destructive-action")):
+                bt = Gtk.Button(label=label, valign=Gtk.Align.CENTER, css_classes=[style] if style else [])
+                bt.connect("clicked", lambda _b, i=item, f=fn: f(i))
+                row.add_suffix(bt)
+            qg.add(row)
+        events = [e for e in antivirus.events() if e.get("file", "").startswith(str(Path.home()))]
+        for ev in events[:15]:
+            when = GLib.DateTime.new_from_unix_local(ev["time"]).format("%b %-d, %H:%M")
+            row = plain_row(title=Path(ev["file"]).name, subtitle=f"{ev['virus']} · {when} · {ev['file']}")
+            name = Path(ev["file"]).name
+            rb = Gtk.Button(label="Restore", valign=Gtk.Align.CENTER)
+            rb.connect("clicked", lambda _b, n=name, f=ev["file"]: self._av_helper(
+                ["restore", n, f], f"Restored {n}", reload=True))
+            db = Gtk.Button(label="Delete", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+            db.connect("clicked", lambda _b, n=name: self._av_helper(["delete", n], f"Deleted {n}", reload=True))
+            row.add_suffix(rb)
+            row.add_suffix(db)
+            qg.add(row)
+        if not mine and not events:
+            qg.add(plain_row(title="Nothing in quarantine"))
+        page.add(qg)
+        return page
+
+    def _av_helper(self, args, success, reload=True):
+        def done(res):
+            good, msg = res if isinstance(res, tuple) else (False, str(res))
+            self.toast(success if good else (msg.splitlines()[-1] if msg else "That didn't work"))
+            if reload and getattr(self, "current", "") == "security":
+                self.reload()
+        background(lambda: antivirus.helper(*args), done)
+
+    def _av_choose(self):
+        dialog = Gtk.FileDialog(title="Choose what to scan")
+
+        def done(d, res):
+            try:
+                f = d.select_folder_finish(res)
+            except GLib.Error:
+                return
+            self._av_scan([f.get_path()])
+
+        dialog.select_folder(self, None, done)
+
+    def _av_scan(self, paths):
+        self.av_status.set_visible(True)
+        self.av_status.set_label("Scanning " + ", ".join(Path(p).name or p for p in paths) + "…")
+        self.av_results.remove_all()
+        self.av_results.set_visible(False)
+
+        def found(item):
+            GLib.idle_add(lambda: (self._av_found_row(item), False)[1])
+
+        def done(res):
+            if getattr(self, "current", "") != "security":
+                return
+            if isinstance(res, Exception):
+                self.av_status.set_label(str(res))
+                return
+            n = len(res["found"])
+            files = f"{res['scanned']} files · " if res["scanned"] else ""
+            self.av_status.set_label((f"Found {n} threat{'s' if n != 1 else ''}. Quarantine them below."
+                                      if n else "No threats found.") + f"  ({files}{res['seconds']:.0f} s)")
+            if n:
+                self.toast(f"Found {n} threat{'s' if n != 1 else ''}")
+
+        background(lambda: antivirus.scan(paths, on_found=found), done)
+
+    def _av_found_row(self, item):
+        self.av_results.set_visible(True)
+        row = plain_row(title=Path(item["file"]).name, subtitle=f"{item['virus']} · {item['file']}")
+        b = Gtk.Button(label="Quarantine", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+
+        def q(*_):
+            try:
+                antivirus.quarantine(item["file"], item["virus"])
+                b.set_sensitive(False)
+                b.set_label("Quarantined")
+            except OSError as e:
+                self.toast(f"Couldn't move it: {e.strerror}")
+        b.connect("clicked", q)
+        row.add_suffix(b)
+        self.av_results.append(row)
+
+    def _av_restore(self, item):
+        try:
+            self.toast(f"Restored to {antivirus.restore(item)}")
+        except OSError as e:
+            self.toast(f"Couldn't restore it: {e.strerror}")
+        self.reload()
+
+    def _av_delete(self, item):
+        antivirus.delete(item)
+        self.toast("Deleted for good")
+        self.reload()
 
     # --- Network -----------------------------------------------------------------------------------
 

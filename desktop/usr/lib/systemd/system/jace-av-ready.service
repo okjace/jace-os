@@ -1,0 +1,6 @@
+[Unit]
+Description=Start Jace OS virus protection once signatures are ready
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'if systemctl -q is-enabled clamav-clamonacc.service; then systemctl start --no-block clamav-daemon.socket clamav-daemon.service clamav-clamonacc.service; fi'

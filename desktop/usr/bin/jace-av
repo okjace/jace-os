@@ -1,0 +1,60 @@
+#!/bin/bash
+# Jace OS virus protection controls (runs as root, through pkexec from Settings).
+#
+#   jace-av realtime on|off      real-time protection (clamd + clamonacc)
+#   jace-av autoscan on|off      the daily scan of home folders
+#   jace-av update               download the newest virus signatures now
+#   jace-av scan                 run the scheduled scan now
+#   jace-av quarantine           list quarantined files
+#   jace-av restore <name> <to>  put a quarantined file back (owned by whoever asked)
+#   jace-av delete <name>        delete a quarantined file for good
+set -u
+q=/var/lib/jace-os/quarantine
+
+if [ "$(id -u)" -ne 0 ]; then
+  exec pkexec "$0" "$@"
+fi
+
+have_signatures() { compgen -G '/var/lib/clamav/daily.c[vl]d' >/dev/null; }
+
+case "${1:-}" in
+  realtime)
+    if [ "${2:-}" = on ]; then
+      systemctl enable --now clamav-freshclam.service jace-av-ready.path
+      have_signatures || freshclam --quiet || { echo "Couldn't download virus signatures." >&2; exit 1; }
+      systemctl enable --now clamav-daemon.socket clamav-daemon.service clamav-clamonacc.service
+    else
+      systemctl disable --now clamav-clamonacc.service clamav-daemon.service clamav-daemon.socket
+    fi ;;
+  autoscan)
+    if [ "${2:-}" = on ]; then systemctl enable --now jace-av-scan.timer; else systemctl disable --now jace-av-scan.timer; fi ;;
+  update)
+    if systemctl -q is-active clamav-freshclam.service; then
+      systemctl stop clamav-freshclam.service
+      freshclam --quiet; status=$?
+      systemctl start clamav-freshclam.service
+      exit $status
+    fi
+    freshclam --quiet ;;
+  scan)
+    systemctl start jace-av-scan.service ;;
+  quarantine)
+    find "$q" -maxdepth 1 -type f -printf '%f\t%s\t%T@\n' ;;
+  restore)
+    name=$(basename -- "${2:?name}") dest=${3:?destination}
+    [ -f "$q/$name" ] || { echo "Not in quarantine: $name" >&2; exit 1; }
+    # Only back into the home folder of whoever asked.
+    home=$(getent passwd "${PKEXEC_UID:-0}" | cut -d: -f6)
+    case "$(realpath -m -- "$dest")" in
+      "$home"/*) ;;
+      *) echo "Files can only be restored into your home folder." >&2; exit 1 ;;
+    esac
+    mv -- "$q/$name" "$dest"
+    [ -n "${PKEXEC_UID:-}" ] && chown "$PKEXEC_UID": "$dest" ;;
+  delete)
+    name=$(basename -- "${2:?name}")
+    rm -f -- "$q/$name" ;;
+  *)
+    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+    exit 2 ;;
+esac

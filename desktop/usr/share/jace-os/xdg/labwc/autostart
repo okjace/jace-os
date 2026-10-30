@@ -17,6 +17,8 @@ jace-idle >/dev/null 2>&1 &
 jace-menu --daemon >/dev/null 2>&1 &
 # The apps that come with Jace OS, as custom apps in Jace Store's My apps (once each).
 jace-my-apps >/dev/null 2>&1 &
+# Alerts when virus protection finds something.
+jace-av-notify >/dev/null 2>&1 &
 
 # Your display settings and night light from Settings → Display.
 conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os"

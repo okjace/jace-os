@@ -1,0 +1,11 @@
+# Starts real-time protection as soon as the first virus signatures have downloaded
+# (clamd won't start without them).
+[Unit]
+Description=Wait for the first ClamAV signatures
+
+[Path]
+PathExistsGlob=/var/lib/clamav/daily.c[vl]d
+Unit=jace-av-ready.service
+
+[Install]
+WantedBy=multi-user.target

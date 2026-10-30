@@ -1,0 +1,10 @@
+[Unit]
+Description=Scan home folders for viruses every day
+
+[Timer]
+OnCalendar=*-*-* 12:30:00
+RandomizedDelaySec=2h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

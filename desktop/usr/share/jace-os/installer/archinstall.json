@@ -19,6 +19,6 @@
     "pacman -Sy --noconfirm --needed jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin",
     "/usr/lib/jace-os/refresh-apps",
     "/usr/lib/jace-os/enable-splash",
-    "systemctl enable greetd.service jace-update.timer NetworkManager.service bluetooth.service power-profiles-daemon.service"
+    "systemctl enable greetd.service jace-update.timer NetworkManager.service bluetooth.service power-profiles-daemon.service clamav-freshclam.service jace-av-ready.path clamav-daemon.socket clamav-daemon.service clamav-clamonacc.service jace-av-scan.timer"
   ]
 }

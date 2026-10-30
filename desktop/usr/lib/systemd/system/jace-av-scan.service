@@ -1,0 +1,13 @@
+[Unit]
+Description=Jace OS scheduled virus scan
+Documentation=https://okjace.github.io/jace-os/#security
+After=clamav-daemon.service
+# Don't drain a laptop on battery; the timer tries again later.
+ConditionACPower=true
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/jace-os/av-scheduled-scan
+Nice=19
+IOSchedulingClass=idle
+CPUWeight=20

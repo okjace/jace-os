@@ -1,0 +1,10 @@
+#!/bin/sh
+# clamd runs this (as the clamav user) every time it finds a threat. It adds a line
+# to the threat log that the alerts (jace-av-notify) and Settings read.
+log=/var/lib/jace-os/av/events.log
+file=${CLAM_VIRUSEVENT_FILENAME:-unknown}
+virus=${CLAM_VIRUSEVENT_VIRUSNAME:-unknown}
+python3 -c 'import json,sys,time
+print(json.dumps({"time": time.time(), "file": sys.argv[1], "virus": sys.argv[2]}))' \
+  "$file" "$virus" >> "$log" 2>/dev/null
+exit 0

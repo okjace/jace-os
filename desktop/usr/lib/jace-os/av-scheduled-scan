@@ -1,0 +1,27 @@
+#!/bin/bash
+# The daily virus scan of everyone's home folder (jace-av-scan.timer). Threats go to
+# quarantine; the result is saved for Settings → Virus protection.
+set -u
+q=/var/lib/jace-os/quarantine
+out=/var/lib/jace-os/av/last-scan.json
+start=$(date +%s)
+mkdir -p "$q"
+
+if [ -S /run/clamav/clamd.ctl ]; then
+  result=$(clamdscan --multiscan --fdpass --infected --move="$q" /home 2>&1)
+elif compgen -G '/var/lib/clamav/daily.c[vl]d' >/dev/null; then
+  result=$(clamscan --recursive --infected --move="$q" /home 2>&1)
+else
+  echo "No virus signatures yet; skipping the scan." >&2
+  exit 0
+fi
+status=$?
+
+found=$(grep -c ' FOUND$' <<<"$result")
+python3 -c 'import json,sys
+print(json.dumps({"time": int(sys.argv[1]), "seconds": int(sys.argv[2]), "found": int(sys.argv[3]),
+                  "ok": sys.argv[4] in ("0", "1"), "where": "/home"}))' \
+  "$start" "$(( $(date +%s) - start ))" "$found" "$status" > "$out"
+chmod 644 "$out"
+# exit 1 just means something was found (and quarantined)
+[ "$status" -le 1 ]
