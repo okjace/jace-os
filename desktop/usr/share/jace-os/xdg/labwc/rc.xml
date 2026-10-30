@@ -1,0 +1,190 @@
+<?xml version="1.0"?>
+<!--
+  Jace OS window manager settings (labwc).
+  Windows work like they do on Windows: title bars with minimize, maximize and
+  close on the right, drag a window to the top to maximize it, to the left or
+  right edge to snap it to half the screen, Alt+Tab to switch, Win+arrows to snap.
+  Copy this file to ~/.config/labwc/rc.xml to change it for one user.
+-->
+<labwc_config>
+
+  <core>
+    <decoration>server</decoration>
+    <gap>0</gap>
+    <adaptiveSync>no</adaptiveSync>
+    <reuseOutputMode>no</reuseOutputMode>
+  </core>
+
+  <placement>
+    <policy>cascade</policy>
+  </placement>
+
+  <theme>
+    <name>Jace</name>
+    <cornerRadius>10</cornerRadius>
+    <keepBorder>yes</keepBorder>
+    <dropShadows>yes</dropShadows>
+    <titlebar>
+      <layout>icon:iconify,max,close</layout>
+      <showTitle>yes</showTitle>
+    </titlebar>
+    <font place="ActiveWindow"><name>Inter</name><size>10</size><weight>bold</weight></font>
+    <font place="InactiveWindow"><name>Inter</name><size>10</size></font>
+    <font place="MenuItem"><name>Inter</name><size>10</size></font>
+    <font place="OnScreenDisplay"><name>Inter</name><size>11</size></font>
+  </theme>
+
+  <!-- Alt+Tab shows a list of open windows with their icons, like Windows. -->
+  <windowSwitcher show="yes" preview="yes" outlines="yes" allWorkspaces="no">
+    <fields>
+      <field content="icon" width="5%" />
+      <field content="title" width="95%" />
+    </fields>
+  </windowSwitcher>
+
+  <!-- Drag to an edge to snap, drag to the top to maximize (Aero Snap). -->
+  <snapping>
+    <range>12</range>
+    <overlay enabled="yes">
+      <delay inner="300" outer="300" />
+    </overlay>
+    <topMaximize>yes</topMaximize>
+    <notifyClient>always</notifyClient>
+  </snapping>
+
+  <resistance>
+    <screenEdgeStrength>20</screenEdgeStrength>
+    <windowEdgeStrength>20</windowEdgeStrength>
+  </resistance>
+
+  <resize>
+    <popupShow>Never</popupShow>
+    <drawContents>yes</drawContents>
+    <cornerRange>8</cornerRange>
+  </resize>
+
+  <focus>
+    <followMouse>no</followMouse>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+
+  <desktops number="4">
+    <names>
+      <name>1</name>
+      <name>2</name>
+      <name>3</name>
+      <name>4</name>
+    </names>
+    <popupTime>500</popupTime>
+  </desktops>
+
+  <keyboard>
+    <numlock>on</numlock>
+    <repeatRate>30</repeatRate>
+    <repeatDelay>400</repeatDelay>
+
+    <!-- Start menu: tap the Windows key. -->
+    <keybind key="Super_L" onRelease="yes"><action name="Execute" command="jace-menu" /></keybind>
+    <keybind key="W-s"><action name="Execute" command="jace-menu" /></keybind>
+
+    <!-- Switching windows -->
+    <keybind key="A-Tab"><action name="NextWindow" /></keybind>
+    <keybind key="A-S-Tab"><action name="PreviousWindow" /></keybind>
+    <keybind key="W-Tab"><action name="NextWindow" /></keybind>
+    <keybind key="A-F4"><action name="Close" /></keybind>
+
+    <!-- Snapping, like Windows: Win+Left/Right halves, Win+Up maximize, Win+Down restore/minimize. -->
+    <keybind key="W-Left"><action name="SnapToEdge" direction="left" /></keybind>
+    <keybind key="W-Right"><action name="SnapToEdge" direction="right" /></keybind>
+    <keybind key="W-Up"><action name="Maximize" /></keybind>
+    <keybind key="W-Down">
+      <action name="If">
+        <query maximized="yes" />
+        <then><action name="UnMaximize" /></then>
+        <else><action name="Iconify" /></else>
+      </action>
+    </keybind>
+    <keybind key="W-S-Left"><action name="SendToDesktop" to="left" wrap="no" /></keybind>
+    <keybind key="W-S-Right"><action name="SendToDesktop" to="right" wrap="no" /></keybind>
+    <keybind key="W-m"><action name="Iconify" /></keybind>
+    <keybind key="W-d"><action name="ToggleShowDesktop" /></keybind>
+
+    <!-- Virtual desktops (Win+Ctrl+Left/Right, like Windows) -->
+    <keybind key="W-C-Left"><action name="GoToDesktop" to="left" wrap="no" /></keybind>
+    <keybind key="W-C-Right"><action name="GoToDesktop" to="right" wrap="no" /></keybind>
+    <keybind key="W-1"><action name="GoToDesktop" to="1" /></keybind>
+    <keybind key="W-2"><action name="GoToDesktop" to="2" /></keybind>
+    <keybind key="W-3"><action name="GoToDesktop" to="3" /></keybind>
+    <keybind key="W-4"><action name="GoToDesktop" to="4" /></keybind>
+
+    <!-- Apps -->
+    <keybind key="W-e"><action name="Execute" command="thunar" /></keybind>
+    <keybind key="W-Return"><action name="Execute" command="foot" /></keybind>
+    <keybind key="C-A-t"><action name="Execute" command="foot" /></keybind>
+    <keybind key="W-i"><action name="Execute" command="jace-settings" /></keybind>
+    <keybind key="W-a"><action name="Execute" command="jace-account" /></keybind>
+    <keybind key="C-S-Escape"><action name="Execute" command="gnome-system-monitor" /></keybind>
+    <keybind key="C-A-Delete"><action name="Execute" command="jace-power" /></keybind>
+    <keybind key="W-l"><action name="Execute" command="jace-lock" /></keybind>
+    <keybind key="W-x"><action name="Execute" command="jace-power" /></keybind>
+    <keybind key="W-period"><action name="Execute" command="jace-emoji" /></keybind>
+
+    <!-- Screenshots: Print = whole screen, Win+Shift+S = pick an area (Snipping Tool). -->
+    <keybind key="Print"><action name="Execute" command="jace-screenshot screen" /></keybind>
+    <keybind key="W-S-s"><action name="Execute" command="jace-screenshot area" /></keybind>
+    <keybind key="W-Print"><action name="Execute" command="jace-screenshot screen" /></keybind>
+
+    <!-- Volume, brightness and media keys -->
+    <keybind key="XF86AudioRaiseVolume"><action name="Execute" command="wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+" /></keybind>
+    <keybind key="XF86AudioLowerVolume"><action name="Execute" command="wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-" /></keybind>
+    <keybind key="XF86AudioMute"><action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" /></keybind>
+    <keybind key="XF86AudioMicMute"><action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" /></keybind>
+    <keybind key="XF86MonBrightnessUp"><action name="Execute" command="brightnessctl set +5%" /></keybind>
+    <keybind key="XF86MonBrightnessDown"><action name="Execute" command="brightnessctl set 5%-" /></keybind>
+    <keybind key="XF86AudioPlay"><action name="Execute" command="playerctl play-pause" /></keybind>
+    <keybind key="XF86AudioNext"><action name="Execute" command="playerctl next" /></keybind>
+    <keybind key="XF86AudioPrev"><action name="Execute" command="playerctl previous" /></keybind>
+  </keyboard>
+
+  <mouse>
+    <default />
+    <doubleClickTime>400</doubleClickTime>
+    <!-- Double-click a title bar to maximize, like Windows. -->
+    <context name="Title">
+      <mousebind button="Left" action="DoubleClick"><action name="ToggleMaximize" /></mousebind>
+      <mousebind button="Right" action="Click"><action name="ShowMenu" menu="client-menu" /></mousebind>
+    </context>
+    <context name="Root">
+      <mousebind button="Left" action="Press" />
+      <mousebind button="Right" action="Press"><action name="ShowMenu" menu="root-menu" /></mousebind>
+      <mousebind button="Middle" action="Press" />
+    </context>
+    <!-- Win+drag moves a window from anywhere inside it. -->
+    <context name="Client">
+      <mousebind button="W-Left" action="Drag"><action name="Move" /></mousebind>
+      <mousebind button="W-Right" action="Drag"><action name="Resize" /></mousebind>
+    </context>
+  </mouse>
+
+  <libinput>
+    <device category="touchpad">
+      <naturalScroll>yes</naturalScroll>
+      <tap>yes</tap>
+      <disableWhileTyping>yes</disableWhileTyping>
+      <clickMethod>clickfinger</clickMethod>
+    </device>
+    <device category="default">
+      <naturalScroll>no</naturalScroll>
+    </device>
+  </libinput>
+
+  <windowRules>
+    <!-- Dialogs and the Jace OS helpers open in the middle of the screen. -->
+    <windowRule identifier="jace-welcome" serverDecoration="yes">
+      <action name="AutoPlace" />
+    </windowRule>
+    <windowRule identifier="pavucontrol"><action name="AutoPlace" /></windowRule>
+    <windowRule identifier="blueman-manager"><action name="AutoPlace" /></windowRule>
+  </windowRules>
+
+</labwc_config>

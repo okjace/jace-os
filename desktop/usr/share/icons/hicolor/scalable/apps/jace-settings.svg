@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32">
+  <title>Jace OS</title>
+  <rect width="32" height="32" rx="9" fill="#3ddc84"/>
+  <g fill="none" stroke="#0c1410" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15.5 6.5v10.75a5 5 0 0 1-9.6 1.95" stroke-width="3.4"/>
+    <circle cx="20.6" cy="24.1" r="2.45" stroke-width="1.5"/>
+    <path d="M28.4 22.25c-.35-.6-1-.95-1.85-.95-1.05 0-1.8.55-1.8 1.35 0 1.9 3.75 1.05 3.75 3.05 0 .85-.8 1.45-1.95 1.45-.95 0-1.7-.4-2.05-1.05" stroke-width="1.5"/>
+  </g>
+</svg>

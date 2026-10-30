@@ -1,0 +1,21 @@
+# Jace OS default apps (change them in Settings → Apps).
+[Default Applications]
+x-scheme-handler/http=zen.desktop
+x-scheme-handler/https=zen.desktop
+text/html=zen.desktop
+application/xhtml+xml=zen.desktop
+application/pdf=zen.desktop
+inode/directory=thunar.desktop
+text/plain=org.gnome.TextEditor.desktop
+image/png=org.gnome.Loupe.desktop
+image/jpeg=org.gnome.Loupe.desktop
+image/webp=org.gnome.Loupe.desktop
+image/gif=org.gnome.Loupe.desktop
+video/mp4=mpv.desktop
+video/x-matroska=mpv.desktop
+video/webm=mpv.desktop
+audio/mpeg=mpv.desktop
+audio/flac=mpv.desktop
+audio/ogg=mpv.desktop
+x-scheme-handler/jacestore=jace-store.desktop
+x-scheme-handler/jacesocial=jace-social.desktop

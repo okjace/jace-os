@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Updates
+Comment=Update Jace OS and your apps
+Exec=jace-settings --page updates
+Icon=software-update-available
+Terminal=false
+Type=Application
+Categories=Settings;System;
+Keywords=update;upgrade;security;

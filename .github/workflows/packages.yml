@@ -1,0 +1,81 @@
+# Builds the Jace OS package repository and publishes it as the "repo" release:
+#   Server = https://github.com/okjace/jace-os/releases/download/repo
+# Runs when Jace OS changes, every hour (a run with nothing new takes seconds), and
+# right away when an app repository sends a "app-released" repository_dispatch, so new
+# Jace app and Zen Browser releases reach installed systems through automatic updates.
+name: Packages
+
+on:
+  push:
+    branches: [main]
+    paths: ["desktop/**", "packages/**", "tools/build-packages.sh", ".github/workflows/packages.yml"]
+  schedule:
+    - cron: "23 * * * *"
+  repository_dispatch:
+    types: [app-released]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: packages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git github-cli python curl
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up a build user
+        run: |
+          useradd -m builder
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          chown -R builder "$GITHUB_WORKSPACE"
+
+      - name: Get the published repository database
+        run: |
+          mkdir -p out/repo
+          if gh release view repo -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view repo -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' > out/published.txt
+            gh release download repo -R "$GITHUB_REPOSITORY" -D out/repo \
+              --pattern 'jace-os.db.tar.gz' --pattern 'jace-os.files.tar.gz' || true
+          fi
+          chown -R builder out
+
+      - name: Build new packages
+        run: |
+          sudo -u builder --preserve-env=GITHUB_TOKEN bash -c \
+            'git config --global --add safe.directory "$PWD" && tools/build-packages.sh'
+
+      - name: Publish
+        run: |
+          [ -f out/built.txt ] || { echo "Nothing new."; exit 0; }
+          gh release view repo -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create repo -R "$GITHUB_REPOSITORY" --title "Jace OS package repository" --latest=false \
+              --notes "The pacman repository Jace OS installs and updates from. Add it to /etc/pacman.conf:
+
+          [jace-os]
+          SigLevel = Optional TrustAll
+          Server = https://github.com/okjace/jace-os/releases/download/repo"
+          cd out/repo
+          while read -r f; do gh release upload repo -R "$GITHUB_REPOSITORY" --clobber "$f"; done < ../built.txt
+          gh release upload repo -R "$GITHUB_REPOSITORY" --clobber \
+            jace-os.db jace-os.files jace-os.db.tar.gz jace-os.files.tar.gz
+          # Remove package files the database no longer lists (replaced by newer versions).
+          current=$(tar -xzOf jace-os.db.tar.gz --wildcards '*/desc' | awk '/%FILENAME%/{getline; print}')
+          gh release view repo -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | while read -r f; do
+            case "$f" in
+              *.pkg.tar.zst) grep -qxF "$f" <<<"$current" || gh release delete-asset repo "$f" -R "$GITHUB_REPOSITORY" -y ;;
+            esac
+          done

@@ -1,0 +1,12 @@
+#!/bin/sh
+# Locks the screen with the Jace OS look.
+pgrep -x swaylock >/dev/null && exit 0
+wallpaper="$(jace-wallpaper path)"
+exec swaylock -f \
+  --image "$wallpaper" --scaling fill \
+  --indicator-radius 90 --indicator-thickness 8 \
+  --inside-color 16181dcc --ring-color 3ddc84 --key-hl-color 5ae69a \
+  --line-color 00000000 --separator-color 00000000 \
+  --text-color e6e8eb --inside-ver-color 16181dcc --ring-ver-color 3ddc84 \
+  --inside-wrong-color 16181dcc --ring-wrong-color ff6b6b \
+  --font Inter

@@ -1,0 +1,53 @@
+# Maintainer: Jace <https://github.com/okjace>
+# Jace Social for Jace OS: the official AppImage, unpacked into /opt so it runs like a
+# normal app (no setup wizard; Jace OS updates it through pacman).
+# tools/build-packages.sh sets pkgver to the newest GitHub release.
+pkgname=jace-social-bin
+_cmd=jace-social
+_name="Jace Social"
+_repo=okjace/jace-social
+_mime="x-scheme-handler/jacesocial;"
+_stem=JaceSocial
+pkgver=1.0.15
+_tag=app-v${pkgver}
+pkgrel=1
+pkgdesc="Friends, group chats, servers and voice calls, with Minecraft built in"
+arch=(x86_64)
+url="https://github.com/${_repo}"
+license=(MIT)
+depends=(glibc hicolor-icon-theme)
+provides=($_cmd)
+conflicts=($_cmd)
+options=(!strip !debug)
+source=("${_stem}-${pkgver}.AppImage::https://github.com/${_repo}/releases/download/${_tag}/${_stem}-${pkgver}-x86_64.AppImage")
+noextract=("${_stem}-${pkgver}.AppImage")
+sha256sums=('SKIP')
+
+prepare() {
+  rm -rf squashfs-root
+  chmod +x "${_stem}-${pkgver}.AppImage"
+  "./${_stem}-${pkgver}.AppImage" --appimage-extract >/dev/null
+}
+
+package() {
+  install -d "$pkgdir/opt" "$pkgdir/usr/bin"
+  cp -a squashfs-root "$pkgdir/opt/$_cmd"
+  chmod -R u+rwX,go+rX,go-w "$pkgdir/opt/$_cmd"
+
+  cat > "$pkgdir/usr/bin/$_cmd" <<WRAPPER
+#!/bin/sh
+exec /opt/$_cmd/AppRun "\$@"
+WRAPPER
+  chmod 755 "$pkgdir/usr/bin/$_cmd"
+
+  local desktop icon
+  desktop=$(find squashfs-root -maxdepth 1 -name '*.desktop' | head -n1)
+  icon=$(readlink -f squashfs-root/.DirIcon)
+  install -Dm644 "$icon" "$pkgdir/usr/share/icons/hicolor/256x256/apps/$_cmd.png"
+  install -d "$pkgdir/usr/share/applications"
+  sed -e "s|^Exec=.*|Exec=$_cmd %U|" -e "s|^Icon=.*|Icon=$_cmd|" -e '/^X-AppImage/d' \
+    "$desktop" > "$pkgdir/usr/share/applications/$_cmd.desktop"
+  if [ -n "$_mime" ] && ! grep -q '^MimeType=' "$pkgdir/usr/share/applications/$_cmd.desktop"; then
+    echo "MimeType=$_mime" >> "$pkgdir/usr/share/applications/$_cmd.desktop"
+  fi
+}

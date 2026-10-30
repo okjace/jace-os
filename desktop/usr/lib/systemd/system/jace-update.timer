@@ -1,0 +1,11 @@
+[Unit]
+Description=Install Jace OS updates (Linux, security fixes, Jace apps) automatically
+
+[Timer]
+OnBootSec=20min
+OnCalendar=*-*-* 00/6:00:00
+RandomizedDelaySec=45min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

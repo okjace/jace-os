@@ -1,0 +1,13 @@
+#!/bin/sh
+# Locks the screen, turns it off and sleeps when you're away.
+# Times (seconds, 0 = never) come from Settings → Power, in ~/.config/jace-os/idle.
+LOCK=600 SCREEN=900 SUSPEND=0
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os/idle"
+# shellcheck disable=SC1090
+[ -r "$conf" ] && . "$conf"
+
+set --
+[ "$LOCK" -gt 0 ] && set -- "$@" timeout "$LOCK" 'jace-lock'
+[ "$SCREEN" -gt 0 ] && set -- "$@" timeout "$SCREEN" 'wlopm --off "*"' resume 'wlopm --on "*"'
+[ "$SUSPEND" -gt 0 ] && set -- "$@" timeout "$SUSPEND" 'systemctl suspend'
+exec swayidle -w "$@" before-sleep 'jace-lock'

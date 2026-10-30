@@ -1,0 +1,11 @@
+#!/bin/sh
+# The Jace OS start menu: tap the Windows (Super) key or click J on the top bar.
+# Runs again while open = close it. gtk4-layer-shell has to load before Wayland does.
+for lib in /usr/lib/libgtk4-layer-shell.so /usr/lib/libgtk4-layer-shell.so.*; do
+  [ -e "$lib" ] && export LD_PRELOAD="$lib${LD_PRELOAD:+:$LD_PRELOAD}" && break
+done
+exec /usr/bin/python3 -c '
+import os, sys
+sys.path.insert(0, os.path.join(os.environ.get("JACE_OS_ROOT", "/"), "usr/lib/jace-os"))
+from jaceos.menu import main
+main()' "$0" "$@"

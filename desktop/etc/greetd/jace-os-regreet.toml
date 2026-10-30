@@ -1,0 +1,19 @@
+# The Jace OS login screen (ReGreet).
+[background]
+path = "/usr/share/backgrounds/jace-os/default.png"
+fit = "Cover"
+
+[GTK]
+application_prefer_dark_theme = true
+icon_theme_name = "Papirus-Dark"
+font_name = "Inter 12"
+
+[commands]
+reboot = ["systemctl", "reboot"]
+poweroff = ["systemctl", "poweroff"]
+
+[appearance]
+greeting_msg = "Welcome to Jace OS"
+
+[widget.clock]
+format = "%A, %B %-d   %H:%M"

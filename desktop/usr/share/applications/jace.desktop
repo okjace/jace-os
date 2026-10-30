@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Jace
+Comment=Your Jace account, projects, videos and messages
+Exec=xdg-open https://jaceo.vercel.app
+Icon=jace-os
+Terminal=false
+Type=Application
+Categories=Network;

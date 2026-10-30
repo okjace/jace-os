@@ -1,0 +1,99 @@
+/* Jace OS top bar: floating rounded islands on a transparent strip, like niri's bar. */
+
+* {
+  font-family: "Inter", "Symbols Nerd Font", sans-serif;
+  font-size: 13px;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+}
+
+window#waybar {
+  background: transparent;
+  color: #e6e8eb;
+}
+
+tooltip {
+  background: #1c1f26;
+  border: 1px solid #2f3540;
+  border-radius: 10px;
+}
+
+/* Every module is an island. */
+#custom-start,
+#workspaces,
+#taskbar,
+#clock,
+#tray,
+#custom-updates,
+#pulseaudio,
+#network,
+#bluetooth,
+#battery,
+#custom-jace,
+#custom-power {
+  background: rgba(22, 24, 29, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 0 12px;
+  margin: 2px 0;
+}
+
+#custom-start {
+  background: #3ddc84;
+  color: #0c1410;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 0 14px;
+}
+#custom-start:hover { background: #5ae69a; }
+
+#workspaces { padding: 0 4px; }
+#workspaces button {
+  color: #8b919c;
+  padding: 0 8px;
+  margin: 4px 2px;
+  border-radius: 8px;
+  background: transparent;
+}
+#workspaces button.active {
+  color: #0c1410;
+  background: #3ddc84;
+  min-width: 26px;
+}
+#workspaces button:hover { background: rgba(255, 255, 255, 0.08); }
+
+#taskbar { padding: 0 4px; }
+#taskbar button {
+  padding: 0 6px;
+  margin: 3px 1px;
+  border-radius: 8px;
+  border-bottom: 2px solid transparent;
+}
+#taskbar button.active {
+  background: rgba(61, 220, 132, 0.16);
+  border-bottom: 2px solid #3ddc84;
+}
+#taskbar button:hover { background: rgba(255, 255, 255, 0.08); }
+#taskbar.empty { background: transparent; border-color: transparent; }
+
+#clock { font-weight: 600; padding: 0 16px; }
+
+#custom-updates.available { color: #3ddc84; }
+#custom-updates.none { padding: 0; margin: 0; background: transparent; border-color: transparent; }
+
+#pulseaudio.muted, #network.disconnected, #bluetooth.off { color: #8b919c; }
+
+#battery.charging { color: #3ddc84; }
+#battery.warning:not(.charging) { color: #f5c451; }
+#battery.critical:not(.charging) { color: #ff6b6b; }
+
+#custom-jace { font-weight: 600; }
+#custom-jace.signed-out { color: #8b919c; }
+
+#custom-power:hover { background: #ff5f57; color: #ffffff; }
+
+#custom-start:hover, #pulseaudio:hover, #network:hover, #bluetooth:hover,
+#battery:hover, #custom-jace:hover, #custom-updates:hover {
+  border-color: rgba(61, 220, 132, 0.5);
+}

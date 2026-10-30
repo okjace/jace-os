@@ -1,0 +1,26 @@
+#!/bin/sh
+# jace-wallpaper restore      show the saved wallpaper (run at login)
+# jace-wallpaper set <file>   change it and remember it
+# jace-wallpaper path         print the current wallpaper's file
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os/wallpaper"
+default=/usr/share/backgrounds/jace-os/default.png
+
+current() {
+  if [ -r "$conf" ] && [ -r "$(cat "$conf")" ]; then cat "$conf"; else echo "$default"; fi
+}
+
+case "$1" in
+  set)
+    [ -r "$2" ] || { echo "No such file: $2" >&2; exit 1; }
+    mkdir -p "$(dirname "$conf")"
+    realpath "$2" > "$conf"
+    pkill -x swaybg
+    setsid swaybg -m fill -i "$(current)" >/dev/null 2>&1 &
+    ;;
+  path) current ;;
+  restore|"")
+    pkill -x swaybg
+    exec swaybg -m fill -i "$(current)"
+    ;;
+  *) echo "usage: jace-wallpaper restore | set <file> | path" >&2; exit 2 ;;
+esac

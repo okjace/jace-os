@@ -1,0 +1,6 @@
+// Administrators (the wheel group) can install updates from Settings without typing a password.
+polkit.addRule(function (action, subject) {
+  if (action.id == "org.jaceos.update" && subject.active && subject.local && subject.isInGroup("wheel")) {
+    return polkit.Result.YES;
+  }
+});

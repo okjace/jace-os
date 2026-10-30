@@ -1,0 +1,49 @@
+#!/bin/bash
+# Makes sure the Jace apps and Zen Browser are the newest releases on GitHub, even
+# if the Jace OS package repository hasn't caught up yet: anything newer is built
+# from the Jace OS PKGBUILD (it just unpacks the official release) and installed.
+# Run as root by the installer and by jace-update.
+set -uo pipefail
+pkgbuilds=/usr/share/jace-os/packages
+
+latest_tag() { # owner/repo [tag-prefix]
+  curl -fsSL --max-time 20 "https://api.github.com/repos/$1/releases?per_page=30" |
+    python3 -c 'import json,sys; p=sys.argv[1]
+for r in json.load(sys.stdin):
+    if not r["draft"] and not r["prerelease"] and r["tag_name"].startswith(p):
+        print(r["tag_name"]); break' "${2:-}"
+}
+
+refresh() { # package github-repo tag-prefix
+  local pkg=$1 tag ver have work
+  tag=$(latest_tag "$2" "${3:-}") || return 0
+  [ -n "$tag" ] || return 0
+  ver=${tag#"${3:-}"}
+  ver=${ver//-/_}
+  have=$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}')
+  # Already this version (or newer)?
+  if [ -n "$have" ] && [ "$(vercmp "${have%-*}" "$ver")" -ge 0 ]; then
+    return 0
+  fi
+  echo "==> $pkg: ${have:-not installed} -> $ver"
+  work=$(mktemp -d)
+  cp "$pkgbuilds/$pkg/PKGBUILD" "$work/"
+  if [ "$pkg" = zen-browser-bin ]; then
+    sed -i "s/^_tag=.*/_tag=$tag/" "$work/PKGBUILD"
+  else
+    sed -i "s/^pkgver=.*/pkgver=$ver/" "$work/PKGBUILD"
+  fi
+  chown -R nobody: "$work"
+  if (cd "$work" && runuser -u nobody -- env HOME="$work" makepkg --nodeps --noconfirm >/dev/null 2>&1); then
+    pacman -U --noconfirm --needed "$work"/*.pkg.tar.zst
+  else
+    echo "    couldn't build $pkg $ver; keeping ${have:-the repository version}"
+  fi
+  rm -rf "$work"
+}
+
+refresh jace-launcher-bin okjace/jace-launcher v
+refresh jace-social-bin okjace/jace-social app-v
+refresh jace-store-bin okjace/jace-store desktop-v
+refresh zen-browser-bin zen-browser/desktop
+exit 0

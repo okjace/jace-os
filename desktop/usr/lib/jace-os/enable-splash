@@ -1,0 +1,31 @@
+#!/bin/bash
+# Turns on the Jace OS boot splash: the Plymouth theme, the plymouth initramfs
+# hook and "quiet splash" on the kernel command line (systemd-boot, GRUB or Limine).
+# Safe to run more than once.
+set -u
+
+plymouth-set-default-theme jace-os 2>/dev/null
+
+conf=/etc/mkinitcpio.conf
+if [ -f "$conf" ] && ! grep -Eq '^HOOKS=.*\bplymouth\b' "$conf"; then
+  # plymouth goes right after udev (busybox initramfs) or systemd (systemd initramfs).
+  sed -Ei '/^HOOKS=/ s/\b(udev|systemd)\b/\1 plymouth/' "$conf"
+fi
+
+
+for entry in /boot/loader/entries/*.conf /efi/loader/entries/*.conf; do
+  [ -f "$entry" ] && grep -q '^options' "$entry" && ! grep -q '^options.* splash' "$entry" &&
+    sed -i '/^options/ s/$/ quiet splash/' "$entry"
+done
+
+if [ -f /etc/default/grub ] && ! grep -q '^GRUB_CMDLINE_LINUX_DEFAULT=.*splash' /etc/default/grub; then
+  sed -Ei 's/^(GRUB_CMDLINE_LINUX_DEFAULT=")/\1quiet splash /' /etc/default/grub
+  command -v grub-mkconfig >/dev/null && grub-mkconfig -o /boot/grub/grub.cfg
+fi
+
+for limine in /boot/limine.conf /boot/limine/limine.conf /efi/limine/limine.conf; do
+  [ -f "$limine" ] && ! grep -q 'cmdline:.* splash' "$limine" &&
+    sed -Ei '/^\s*(kernel_)?cmdline:/ s/$/ quiet splash/' "$limine"
+done
+
+mkinitcpio -P >/dev/null 2>&1 || true

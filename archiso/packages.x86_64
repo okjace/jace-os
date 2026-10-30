@@ -1,0 +1,64 @@
+# Jace OS live USB packages. build.sh adds these to what the ISO needs to boot.
+# Base system
+base
+linux
+linux-firmware
+linux-firmware-marvell
+intel-ucode
+amd-ucode
+mkinitcpio
+mkinitcpio-archiso
+mkinitcpio-nfs-utils
+syslinux
+grub
+efibootmgr
+edk2-shell
+memtest86+
+memtest86+-efi
+sof-firmware
+alsa-firmware
+# Hardware and disks
+mesa
+vulkan-radeon
+vulkan-intel
+vulkan-nouveau
+libva-mesa-driver
+intel-media-driver
+btrfs-progs
+dosfstools
+e2fsprogs
+exfatprogs
+ntfs-3g
+xfsprogs
+f2fs-tools
+lvm2
+cryptsetup
+mdadm
+gptfdisk
+parted
+smartmontools
+usbutils
+# Networking
+networkmanager
+iwd
+wireless_tools
+wpa_supplicant
+modemmanager
+openssh
+reflector
+# Installer
+archinstall
+arch-install-scripts
+# Accessibility and boot helpers
+sudo
+zsh
+vim
+nano
+git
+man-db
+# Jace OS (from the local repository build.sh makes)
+jace-os
+jace-launcher-bin
+jace-social-bin
+jace-store-bin
+zen-browser-bin

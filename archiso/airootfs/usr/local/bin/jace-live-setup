@@ -1,0 +1,14 @@
+#!/bin/bash
+# Live USB only: makes the "jace" user (no password, administrator) and signs it
+# straight in to the Jace OS desktop, with the welcome app offering to install.
+set -e
+if ! id jace >/dev/null 2>&1; then
+  useradd -m -G wheel,video,audio,input,network -c "Jace OS" -s /bin/bash jace
+  passwd -d jace >/dev/null
+fi
+cp /usr/lib/jace-os/os-release /etc/os-release
+plymouth-set-default-theme jace-os 2>/dev/null || true
+# Sign in automatically on the live USB.
+if ! grep -q '^\[initial_session\]' /etc/greetd/jace-os.toml; then
+  printf '\n[initial_session]\ncommand = "jace-session"\nuser = "jace"\n' >> /etc/greetd/jace-os.toml
+fi

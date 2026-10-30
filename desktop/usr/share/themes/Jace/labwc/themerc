@@ -1,0 +1,64 @@
+# Jace window theme for labwc: dark title bars with the Jace green accent,
+# minimize / maximize / close on the right like Windows.
+
+border.width: 1
+padding.height: 6
+padding.width: 10
+titlebar.height: 32
+
+window.active.border.color: #2f3540
+window.inactive.border.color: #22262e
+window.active.indicator.toggled-keybind.color: #3ddc84
+
+window.active.title.bg.color: #1c1f26
+window.inactive.title.bg.color: #16181d
+window.active.label.text.color: #e6e8eb
+window.inactive.label.text.color: #8b919c
+window.label.text.justify: left
+
+window.active.button.unpressed.image.color: #e6e8eb
+window.inactive.button.unpressed.image.color: #8b919c
+window.active.button.hover.bg.color: #2a2f38
+window.button.width: 46
+window.button.spacing: 0
+window.button.hover.bg.corner-radius: 0
+window.active.button.close.hover.image.color: #ffffff
+
+window.active.shadow.size: 40
+window.inactive.shadow.size: 24
+window.active.shadow.color: #00000066
+window.inactive.shadow.color: #00000040
+
+menu.overlap.x: 0
+menu.overlap.y: 0
+menu.width.min: 200
+menu.items.bg.color: #1c1f26
+menu.items.text.color: #e6e8eb
+menu.items.active.bg.color: #3ddc84
+menu.items.active.text.color: #0c1410
+menu.items.padding.x: 12
+menu.items.padding.y: 6
+menu.separator.color: #2a2f38
+menu.border.width: 1
+menu.border.color: #2f3540
+
+osd.bg.color: #1c1f26
+osd.border.color: #3ddc84
+osd.border.width: 1
+osd.label.text.color: #e6e8eb
+osd.window-switcher.width: 50%
+osd.window-switcher.padding: 6
+osd.window-switcher.item.padding.x: 10
+osd.window-switcher.item.padding.y: 8
+osd.window-switcher.item.active.border.width: 2
+osd.window-switcher.preview.border.width: 2
+osd.window-switcher.preview.border.color: #3ddc84
+
+snapping.overlay.region.bg.enabled: yes
+snapping.overlay.region.bg.color: #3ddc8440
+snapping.overlay.region.border.width: 2
+snapping.overlay.region.border.color: #3ddc84
+snapping.overlay.edge.bg.enabled: yes
+snapping.overlay.edge.bg.color: #3ddc8440
+snapping.overlay.edge.border.width: 2
+snapping.overlay.edge.border.color: #3ddc84

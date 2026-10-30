@@ -1,0 +1,9 @@
+#!/bin/sh
+# Prints the config file to use for $1 (e.g. "waybar/style.css"): yours in
+# ~/.config if you made one, otherwise the Jace OS default.
+user="${XDG_CONFIG_HOME:-$HOME/.config}/$1"
+if [ -e "$user" ]; then
+  printf '%s\n' "$user"
+else
+  printf '%s\n' "/usr/share/jace-os/xdg/$1"
+fi

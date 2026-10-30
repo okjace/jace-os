@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jace OS</title>
+  <meta name="description" content="Jace OS: an Arch-based Linux with Windows-style windows, a niri-style top bar, Jace Launcher, Jace Social, Jace Store and your Jace account built in.">
+  <meta property="og:title" content="Jace OS">
+  <meta property="og:description" content="Arch Linux, made friendly. Your Jace apps and account built in, and updates that install themselves.">
+  <meta property="og:image" content="https://okjace.github.io/jace-os/img/apple-touch-icon.png">
+  <meta name="theme-color" content="#111317">
+  <link rel="icon" href="img/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --fg: #16181d;
+      --panel: #ffffff;
+      --line: #dfe2e7;
+      --muted: #5d6470;
+      --accent: #1f9d5a;
+      --accent-strong: #188049;
+      --on-accent: #ffffff;
+      --glow: rgba(31, 157, 90, 0.18);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #111317;
+        --fg: #e6e8eb;
+        --panel: #1c1f26;
+        --line: #2a2f38;
+        --muted: #8b919c;
+        --accent: #3ddc84;
+        --accent-strong: #5ae69a;
+        --on-accent: #0c1410;
+        --glow: rgba(61, 220, 132, 0.16);
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #111317;
+      --fg: #e6e8eb;
+      --panel: #1c1f26;
+      --line: #2a2f38;
+      --muted: #8b919c;
+      --accent: #3ddc84;
+      --accent-strong: #5ae69a;
+      --on-accent: #0c1410;
+      --glow: rgba(61, 220, 132, 0.16);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 16px/1.6 Inter, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+    nav {
+      position: sticky; top: 0; z-index: 10;
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    nav .wrap { display: flex; align-items: center; gap: 20px; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--fg); text-decoration: none; font-size: 18px; }
+    .brand img { width: 30px; height: 30px; }
+    nav .links { margin-left: auto; display: flex; gap: 18px; align-items: center; }
+    nav .links a { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 15px; }
+    nav .links a:hover { color: var(--fg); }
+    @media (max-width: 720px) { nav .links a.hide-sm { display: none; } }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 22px; border-radius: 12px; font-weight: 700; text-decoration: none;
+      border: 1px solid var(--line); color: var(--fg); background: var(--panel);
+      transition: transform .15s ease, background .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+    .btn.primary:hover { background: var(--accent-strong); }
+    nav .btn { padding: 8px 14px; font-size: 14px; }
+
+    header.hero { padding: 72px 0 40px; text-align: center; position: relative; overflow: hidden; }
+    header.hero::before {
+      content: ""; position: absolute; inset: -40% -10% auto; height: 120%;
+      background: radial-gradient(ellipse at 50% 40%, var(--glow), transparent 60%);
+      pointer-events: none;
+    }
+    .hero .logo { width: 104px; height: 104px; filter: drop-shadow(0 12px 32px var(--glow)); }
+    .hero h1 { font-size: clamp(40px, 7vw, 72px); line-height: 1.05; margin: 22px 0 12px; letter-spacing: -0.03em; font-weight: 800; }
+    .hero p.lead { font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 680px; margin: 0 auto 28px; }
+    .hero .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero .small { color: var(--muted); font-size: 14px; margin-top: 14px; }
+
+    /* The desktop picture, drawn in CSS. */
+    .screen {
+      margin: 48px auto 0; max-width: 1000px; aspect-ratio: 16 / 9;
+      border-radius: 18px; overflow: hidden; position: relative;
+      background: #0d0f13 url(img/wallpaper.jpg) center / cover;
+      border: 1px solid var(--line);
+      box-shadow: 0 40px 80px rgba(0, 0, 0, 0.35);
+      font-size: clamp(7px, 1.25vw, 13px);
+      text-align: left;
+      color: #e6e8eb;
+    }
+    .bar { position: absolute; top: 1.2%; left: 1%; right: 1%; height: 6%; display: flex; gap: .6%; align-items: stretch; }
+    .isl { background: rgba(22, 24, 29, .9); border: 1px solid rgba(255,255,255,.07); border-radius: .9em; display: flex; align-items: center; padding: 0 1em; gap: .6em; white-space: nowrap; }
+    .isl.start { background: #3ddc84; color: #0c1410; font-weight: 800; padding: 0 1.1em; }
+    .isl .ws { width: 1.6em; height: 1.4em; border-radius: .45em; display: grid; place-items: center; color: #8b919c; font-size: .9em; }
+    .isl .ws.on { background: #3ddc84; color: #0c1410; }
+    .isl .task { width: 1.5em; height: 1.5em; border-radius: .4em; }
+    .bar .mid { margin: 0 auto; font-weight: 600; }
+    .win {
+      position: absolute; background: #1c1f26; border: 1px solid #2f3540; border-radius: .9em;
+      box-shadow: 0 1.5em 3em rgba(0,0,0,.45); overflow: hidden;
+    }
+    .win .title { height: 2.6em; display: flex; align-items: center; padding-left: 1em; font-weight: 700; font-size: .95em; background: #1c1f26; }
+    .win .title span.btns { margin-left: auto; display: flex; height: 100%; }
+    .win .title span.btns i { width: 3.4em; display: grid; place-items: center; font-style: normal; color: #c7cbd1; }
+    .win .title span.btns i.x:hover { background: #e81123; color: #fff; }
+    .win .body { padding: 1em; color: #c7cbd1; }
+    .menu {
+      position: absolute; left: 1%; top: 8.6%; width: 38%; height: 70%;
+      background: rgba(22,24,29,.95); border: 1px solid rgba(255,255,255,.08); border-radius: 1.2em;
+      padding: 1.2em; box-shadow: 0 1.5em 3em rgba(0,0,0,.45);
+      display: flex; flex-direction: column; gap: .9em;
+    }
+    .menu .search { background: #2a2f38; border-radius: .7em; padding: .7em 1em; color: #8b919c; }
+    .menu .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .9em .4em; }
+    .menu .app { display: flex; flex-direction: column; align-items: center; gap: .35em; font-size: .85em; text-align: center; }
+    .menu .ico { width: 2.8em; height: 2.8em; border-radius: .75em; display: grid; place-items: center; font-weight: 800; color: #0c1410; }
+    .menu .foot { margin-top: auto; border-top: 1px solid rgba(255,255,255,.07); padding-top: .8em; display: flex; align-items: center; gap: .6em; }
+    .menu .av { width: 2em; height: 2em; border-radius: 50%; background: #3ddc84; color: #0c1410; display: grid; place-items: center; font-weight: 800; }
+    .snap {
+      position: absolute; right: 1%; top: 8.6%; width: 48.5%; bottom: 1.5%;
+      border: 2px solid #3ddc84; background: rgba(61,220,132,.16); border-radius: .9em;
+    }
+
+    section { padding: 72px 0; }
+    section h2 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.02em; margin: 0 0 12px; line-height: 1.15; }
+    section p.sub { color: var(--muted); font-size: 18px; max-width: 680px; margin: 0 0 36px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+    .card h3 { margin: 12px 0 6px; font-size: 18px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .icon {
+      width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--glow); color: var(--accent);
+    }
+    .icon svg { width: 22px; height: 22px; }
+
+    .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .app-card { display: flex; gap: 14px; align-items: flex-start; }
+    .app-card .badge { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-weight: 800; font-size: 20px; color: #0c1410; }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+    @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+    ul.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+    ul.checks li { display: flex; gap: 12px; align-items: flex-start; }
+    ul.checks li::before {
+      content: ""; flex: none; width: 22px; height: 22px; margin-top: 2px; border-radius: 50%;
+      background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230c1410' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center / 14px no-repeat;
+    }
+
+    .updates {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px;
+      display: grid; gap: 10px;
+    }
+    .urow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+    .urow .name { font-weight: 600; }
+    .urow .ver { color: var(--muted); font-size: 14px; }
+    .urow .tag { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--accent); }
+    .urow .pill { margin-left: auto; background: var(--accent); color: var(--on-accent); padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+
+    table.keys { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+    table.keys td { padding: 12px 18px; border-bottom: 1px solid var(--line); }
+    table.keys tr:last-child td { border-bottom: none; }
+    kbd {
+      font: 600 13px "JetBrains Mono", monospace; padding: 3px 8px; border-radius: 7px;
+      border: 1px solid var(--line); border-bottom-width: 2px; background: var(--bg); white-space: nowrap;
+    }
+
+    ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+    ol.steps li { counter-increment: s; display: flex; gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+    ol.steps li::before {
+      content: counter(s); flex: none; width: 34px; height: 34px; border-radius: 50%;
+      display: grid; place-items: center; font-weight: 800; background: var(--accent); color: var(--on-accent);
+    }
+    ol.steps h3 { margin: 4px 0 4px; font-size: 17px; }
+    ol.steps p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    pre {
+      background: #0d0f13; color: #e6e8eb; padding: 16px 18px; border-radius: 14px; overflow-x: auto;
+      font: 14px/1.6 "JetBrains Mono", monospace; border: 1px solid var(--line);
+    }
+
+    footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+    footer .links { margin-left: auto; display: flex; gap: 18px; flex-wrap: wrap; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="#"><img src="img/logo.svg" alt="">Jace OS</a>
+      <div class="links">
+        <a class="hide-sm" href="#features">Features</a>
+        <a class="hide-sm" href="#updates">Updates</a>
+        <a class="hide-sm" href="#install">Install</a>
+        <a class="hide-sm" href="https://github.com/okjace/jace-os">GitHub</a>
+        <a class="btn primary" href="https://github.com/okjace/jace-os/releases/latest">Download</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <img class="logo" src="img/logo.svg" alt="The Jace OS logo: a J with OS at its lower right">
+      <h1>Jace OS</h1>
+      <p class="lead">Arch Linux, made friendly. Windows that work the way you expect, a clean top bar, your Jace apps and account built in, and updates that install themselves.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/okjace/jace-os/releases/latest">Download the ISO</a>
+        <a class="btn" href="https://github.com/okjace/jace-os">View the source</a>
+      </div>
+      <p class="small">Free and open source (MIT) · 64-bit PCs · Wayland</p>
+
+      <div class="screen" role="img" aria-label="The Jace OS desktop: a top bar of rounded islands, an open start menu with pinned apps, and a window snapped to the right half of the screen">
+        <div class="bar">
+          <div class="isl start">J</div>
+          <div class="isl"><span class="ws on">1</span><span class="ws">2</span><span class="ws">3</span></div>
+          <div class="isl"><span class="task" style="background:#3ddc84"></span><span class="task" style="background:#5b8def"></span><span class="task" style="background:#f5a623"></span></div>
+          <div class="isl mid">Fri Oct 30&nbsp;&nbsp;15:42</div>
+          <div class="isl">🔊 64%&nbsp;&nbsp;📶</div>
+          <div class="isl">Jace</div>
+          <div class="isl">⏻</div>
+        </div>
+        <div class="snap"></div>
+        <div class="win" style="right:1%;top:8.6%;width:48.5%;bottom:1.5%">
+          <div class="title">Settings — Updates<span class="btns"><i>–</i><i>▢</i><i class="x">✕</i></span></div>
+          <div class="body">
+            <div style="font-weight:800;font-size:1.3em;color:#e6e8eb;margin-bottom:.6em">You're up to date</div>
+            <div style="display:grid;gap:.5em">
+              <div style="background:#16181d;border-radius:.6em;padding:.6em .8em">Jace Launcher · up to date</div>
+              <div style="background:#16181d;border-radius:.6em;padding:.6em .8em">Jace Social · up to date</div>
+              <div style="background:#16181d;border-radius:.6em;padding:.6em .8em">Jace Store · up to date</div>
+              <div style="background:#16181d;border-radius:.6em;padding:.6em .8em">Install updates automatically <b style="color:#3ddc84;float:right">On</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="menu">
+          <div class="search">Search apps, settings and files</div>
+          <div style="font-weight:700">Pinned</div>
+          <div class="grid">
+            <div class="app"><div class="ico" style="background:#f4f5f7">Z</div>Zen</div>
+            <div class="app"><div class="ico" style="background:#3ddc84">⛏</div>Launcher</div>
+            <div class="app"><div class="ico" style="background:#5b8def">💬</div>Social</div>
+            <div class="app"><div class="ico" style="background:#f5a623">🛍</div>Store</div>
+            <div class="app"><div class="ico" style="background:#9b8cf2">📁</div>Files</div>
+            <div class="app"><div class="ico" style="background:#2a2f38;color:#3ddc84">&gt;_</div>Terminal</div>
+            <div class="app"><div class="ico" style="background:#c7cbd1">⚙</div>Settings</div>
+            <div class="app"><div class="ico" style="background:#ff8a65">🖼</div>Photos</div>
+          </div>
+          <div class="foot"><div class="av">J</div>Jace<span style="margin-left:auto;color:#8b919c">⏻</span></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Familiar from the first click</h2>
+      <p class="sub">If you've used Windows, you already know how to use Jace OS. If you've used Arch, you'll find everything you love underneath.</p>
+      <div class="cards">
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M12 9v11"/></svg></div>
+          <h3>Windows-style windows</h3>
+          <p>Minimize, maximize and close on the right. Drag to the top to maximize, to a side to snap. Alt+Tab, Win+arrows and Alt+F4 all work.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+          <h3>A start menu on the Windows key</h3>
+          <p>Tap the Windows key: pinned apps, every app, and search as you type. Make it yours in Settings: where it opens, its size, layout and what's pinned.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="2.5"/><path d="M6 14h12M6 18h8"/></svg></div>
+          <h3>A top bar inspired by niri</h3>
+          <p>Floating rounded islands: start button, desktops and open windows on the left, the clock in the middle, status and your Jace account on the right.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div>
+          <h3>One Settings app for everything</h3>
+          <p>Wi-Fi, Bluetooth, displays, sound, wallpaper, start menu, keyboard, power, date and time, default apps, users and updates, all in one place.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3>Secure without trying</h3>
+          <p>Linux, security fixes and your apps update by themselves in the background. You never have to open a terminal.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
+          <h3>Wayland all the way</h3>
+          <p>A modern Wayland desktop (labwc) with screen sharing, fractional scaling and portals, and XWayland for older apps.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="apps" style="background:var(--panel);border-block:1px solid var(--line)">
+    <div class="wrap">
+      <h2>Your Jace apps, already installed</h2>
+      <p class="sub">Sign in once with your Jace account and you're in everywhere. Zen Browser comes too.</p>
+      <div class="apps">
+        <div class="card app-card"><div class="badge" style="background:#3ddc84">⛏</div><div><h3 style="margin:0 0 4px">Jace Launcher</h3><p>Minecraft with every version, mod loaders, modpacks, skins and capes.</p></div></div>
+        <div class="card app-card"><div class="badge" style="background:#5b8def">💬</div><div><h3 style="margin:0 0 4px">Jace Social</h3><p>Friends, chats, servers and voice calls, with Minecraft built in.</p></div></div>
+        <div class="card app-card"><div class="badge" style="background:#f5a623">🛍</div><div><h3 style="margin:0 0 4px">Jace Store</h3><p>Apps, games and Minecraft content, plus Flathub and the Arch repos.</p></div></div>
+        <div class="card app-card"><div class="badge" style="background:#f4f5f7;border:1px solid var(--line)">Z</div><div><h3 style="margin:0 0 4px">Zen Browser</h3><p>A calm, fast browser, set as the default.</p></div></div>
+      </div>
+      <div style="margin-top:28px" class="card">
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+          <img src="img/logo.svg" alt="" width="48" height="48">
+          <div style="flex:1;min-width:240px">
+            <h3 style="margin:0 0 4px">Sign in with Jace</h3>
+            <p>Your Jace account lives on the top bar and in Settings. It shows your name and picture, and signs you in to Jace Social, Jace Store and Jace Launcher.</p>
+          </div>
+          <a class="btn" href="https://jaceo.vercel.app">What's Jace?</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="updates">
+    <div class="wrap split">
+      <div>
+        <h2>Updates install themselves</h2>
+        <p class="sub" style="margin-bottom:24px">Jace OS checks every few hours while you're plugged in and installs everything quietly.</p>
+        <ul class="checks">
+          <li><span>The newest Linux kernel and security fixes from Arch Linux</span></li>
+          <li><span>New versions of Jace Launcher, Jace Social, Jace Store and Zen Browser, the day they're released</span></li>
+          <li><span>Flatpak apps too</span></li>
+          <li><span>The two newest versions of everything stay cached, so a bad update can be undone</span></li>
+          <li><span>See and install updates yourself any time in Settings → Updates</span></li>
+        </ul>
+      </div>
+      <div class="updates" aria-label="The Updates page in Settings">
+        <div style="font-weight:800;font-size:20px">3 updates available</div>
+        <div class="urow"><div><div class="name">Jace Launcher</div><div class="ver">1.11.1 → 1.12.0</div></div><span class="pill">Update</span></div>
+        <div class="urow"><div><div class="name">linux</div><div class="ver">6.17.5 → 6.17.6</div></div><span class="tag">Security</span></div>
+        <div class="urow"><div><div class="name">openssl</div><div class="ver">3.6.0 → 3.6.1</div></div><span class="tag">Security</span></div>
+        <div class="urow"><div><div class="name">Install updates automatically</div><div class="ver">Every few hours when plugged in</div></div><span class="tag">On</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="keys" style="padding-top:0">
+    <div class="wrap">
+      <h2>Shortcuts you already know</h2>
+      <p class="sub">The same keys as Windows.</p>
+      <table class="keys">
+        <tr><td><kbd>Win</kbd></td><td>Open the start menu, then just type to search</td></tr>
+        <tr><td><kbd>Alt</kbd> + <kbd>Tab</kbd></td><td>Switch windows</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>←</kbd> / <kbd>→</kbd></td><td>Snap a window to half the screen</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></td><td>Maximize, restore or minimize</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>D</kbd></td><td>Show the desktop</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>E</kbd> · <kbd>Win</kbd> + <kbd>I</kbd> · <kbd>Win</kbd> + <kbd>L</kbd></td><td>Files · Settings · Lock</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td><td>Screenshot part of the screen</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd></td><td>System Monitor (Task Manager)</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="install" style="background:var(--panel);border-block:1px solid var(--line)">
+    <div class="wrap" id="docs">
+      <h2>Install Jace OS</h2>
+      <p class="sub">You need a USB stick (8 GB or bigger) and an internet connection.</p>
+      <ol class="steps">
+        <li><div><h3>Download the ISO</h3><p>Get the newest <a href="https://github.com/okjace/jace-os/releases/latest">jace-os ISO from GitHub</a>. If it comes in parts, join them first (the release notes show how).</p></div></li>
+        <li><div><h3>Write it to a USB stick</h3><p>Use <a href="https://etcher.balena.io">balenaEtcher</a> or <a href="https://rufus.ie">Rufus</a> on Windows or macOS, or <code>dd</code> on Linux. This erases the stick.</p></div></li>
+        <li><div><h3>Start your computer from the USB stick</h3><p>Open your computer's boot menu (often F12, F11 or Esc while it starts) and pick the USB stick. You'll see the Jace OS logo, then the desktop.</p></div></li>
+        <li><div><h3>Try it, then click Install Jace OS</h3><p>The welcome app has an Install button. Pick your language, keyboard, disk, name and password; everything else is already chosen.</p></div></li>
+      </ol>
+
+      <h3 style="margin:40px 0 10px">Already on Arch?</h3>
+      <p style="color:var(--muted);margin:0 0 12px">Add the Jace OS repository to <code>/etc/pacman.conf</code>, then install the desktop and apps and choose “Jace OS” on your login screen.</p>
+      <pre>[jace-os]
+SigLevel = Optional TrustAll
+Server = https://github.com/okjace/jace-os/releases/download/repo</pre>
+      <pre>sudo pacman -Syu jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin</pre>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap" style="text-align:center">
+      <h2>Open source, made by Jace</h2>
+      <p class="sub" style="margin:0 auto 28px">Jace OS is MIT-licensed. Read the code, report a problem or send a fix on GitHub.</p>
+      <div class="hero"><div class="cta">
+        <a class="btn primary" href="https://github.com/okjace/jace-os">GitHub</a>
+        <a class="btn" href="https://github.com/okjace/jace-os/issues">Report a problem</a>
+      </div></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 Jace · Jace OS is based on Arch Linux and is not affiliated with it.</span>
+      <div class="links">
+        <a href="https://jaceo.vercel.app">Jace</a>
+        <a href="https://jace-social.vercel.app">Jace Social</a>
+        <a href="https://jace-store-deb.vercel.app">Jace Store</a>
+        <a href="https://okjace.github.io/jace-launcher/">Jace Launcher</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

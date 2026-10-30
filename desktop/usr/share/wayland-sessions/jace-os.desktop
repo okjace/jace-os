@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Jace OS
+Comment=The Jace OS desktop (Wayland)
+Exec=jace-session
+Type=Application
+DesktopNames=labwc;wlroots;JaceOS

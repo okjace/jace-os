@@ -1,0 +1,14 @@
+[Unit]
+Description=Jace OS automatic updates
+Documentation=https://okjace.github.io/jace-os/#updates
+Wants=network-online.target
+After=network-online.target
+# Don't drain a laptop on battery; the timer tries again later.
+ConditionACPower=true
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/jace-update --auto
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=2h

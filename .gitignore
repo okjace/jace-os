@@ -1,0 +1,9 @@
+/out/
+/work/
+__pycache__/
+*.pkg.tar.zst
+packages/*/src/
+packages/*/pkg/
+packages/*/*.AppImage
+packages/*/*.tar.xz
+packages/*/squashfs-root/

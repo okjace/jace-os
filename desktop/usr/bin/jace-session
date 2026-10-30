@@ -1,0 +1,12 @@
+#!/bin/sh
+# Starts a Jace OS desktop session (labwc + the Jace OS defaults).
+# The login screen runs this from /usr/share/wayland-sessions/jace-os.desktop.
+
+# Jace OS defaults sit after the user's own config, so ~/.config always wins.
+export XDG_CONFIG_DIRS="/usr/share/jace-os/xdg:${XDG_CONFIG_DIRS:-/etc/xdg}"
+export XDG_CURRENT_DESKTOP=labwc:wlroots:JaceOS
+export XDG_SESSION_DESKTOP=jace-os
+export XDG_SESSION_TYPE=wayland
+
+# -m merges ~/.config/labwc over the Jace OS defaults, so Settings only writes what you change.
+exec labwc -m "$@"

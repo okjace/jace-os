@@ -1,0 +1,17 @@
+# Environment for every Jace OS session (labwc reads this before starting).
+XDG_CURRENT_DESKTOP=labwc:wlroots:JaceOS
+XDG_SESSION_DESKTOP=jace-os
+XDG_SESSION_TYPE=wayland
+
+# Prefer Wayland in every toolkit, fall back to XWayland when an app can't.
+MOZ_ENABLE_WAYLAND=1
+QT_QPA_PLATFORM=wayland;xcb
+QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+GDK_BACKEND=wayland,x11
+SDL_VIDEODRIVER=wayland,x11
+CLUTTER_BACKEND=wayland
+ELECTRON_OZONE_PLATFORM_HINT=auto
+_JAVA_AWT_WM_NONREPARENTING=1
+
+XCURSOR_THEME=Adwaita
+XCURSOR_SIZE=24

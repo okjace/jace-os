@@ -1,0 +1,78 @@
+# Jace OS boot splash: the J OS logo in the middle of a black screen, a row of
+# dots underneath that pulse while it starts, and a password box for encrypted disks.
+
+Window.SetBackgroundTopColor(0.0, 0.0, 0.0);
+Window.SetBackgroundBottomColor(0.0, 0.0, 0.0);
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+logo.image = Image("logo.png");
+size = Math.Int(screen_h / 5);
+if (size < 120) size = 120;
+logo.image = logo.image.Scale(size, size);
+logo.sprite = Sprite(logo.image);
+logo.x = Window.GetX() + screen_w / 2 - size / 2;
+logo.y = Window.GetY() + screen_h / 2 - size / 2 - size / 4;
+logo.sprite.SetPosition(logo.x, logo.y, 1);
+logo.sprite.SetOpacity(0);
+
+dot.image = Image("dot.png");
+dots = 5;
+gap = 22;
+for (i = 0; i < dots; i++) {
+  dot[i].sprite = Sprite(dot.image);
+  dot[i].sprite.SetPosition(Window.GetX() + screen_w / 2 - (dots - 1) * gap / 2 + i * gap - 5,
+                            logo.y + size + size / 3, 2);
+  dot[i].sprite.SetOpacity(0.2);
+}
+
+# Placeholders so the callbacks below can hide things that were never shown.
+box.sprite = Sprite(); label.sprite = Sprite(); pw.sprite = Sprite(); msg.sprite = Sprite();
+
+t = 0;
+fun refresh_callback() {
+  t++;
+  fade = t / 40;
+  if (fade > 1) fade = 1;
+  logo.sprite.SetOpacity(fade);
+  for (i = 0; i < dots; i++) {
+    phase = Math.Sin((t / 8) - i * 0.7);
+    dot[i].sprite.SetOpacity(fade * (0.25 + 0.75 * (phase + 1) / 2));
+  }
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# --- disk password (encrypted installs) ---
+fun display_password_callback(prompt, bullets) {
+  box.image = Image("box.png");
+  box.sprite = Sprite(box.image);
+  box.sprite.SetPosition(Window.GetX() + screen_w / 2 - box.image.GetWidth() / 2,
+                         logo.y + size + size / 3 - 10, 10);
+  label.image = Image.Text(prompt, 0.9, 0.91, 0.92, 1, "Sans 12");
+  label.sprite = Sprite(label.image);
+  label.sprite.SetPosition(Window.GetX() + screen_w / 2 - label.image.GetWidth() / 2,
+                           logo.y + size + size / 3 - 40, 11);
+  text = "";
+  for (i = 0; i < bullets; i++) text += "●";
+  pw.image = Image.Text(text, 0.24, 0.86, 0.52, 1, "Sans 14");
+  pw.sprite = Sprite(pw.image);
+  pw.sprite.SetPosition(Window.GetX() + screen_w / 2 - pw.image.GetWidth() / 2,
+                        logo.y + size + size / 3 + 4, 11);
+  for (i = 0; i < dots; i++) dot[i].sprite.SetOpacity(0);
+}
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+fun display_normal_callback() {
+  box.sprite.SetOpacity(0);
+  label.sprite.SetOpacity(0);
+  pw.sprite.SetOpacity(0);
+}
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+
+fun message_callback(text) {
+  msg.image = Image.Text(text, 0.55, 0.57, 0.61, 1, "Sans 10");
+  msg.sprite = Sprite(msg.image);
+  msg.sprite.SetPosition(Window.GetX() + screen_w / 2 - msg.image.GetWidth() / 2, screen_h - 60, 12);
+}
+Plymouth.SetMessageFunction(message_callback);

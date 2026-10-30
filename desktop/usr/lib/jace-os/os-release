@@ -1,0 +1,12 @@
+NAME="Jace OS"
+PRETTY_NAME="Jace OS"
+ID=jace-os
+ID_LIKE=arch
+BUILD_ID=rolling
+VERSION_ID=1.0
+ANSI_COLOR="38;2;61;220;132"
+HOME_URL="https://okjace.github.io/jace-os/"
+DOCUMENTATION_URL="https://okjace.github.io/jace-os/#docs"
+SUPPORT_URL="https://github.com/okjace/jace-os/issues"
+BUG_REPORT_URL="https://github.com/okjace/jace-os/issues"
+LOGO=jace-os

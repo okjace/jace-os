@@ -1,0 +1,12 @@
+# Arch's filesystem package resets /etc/os-release; put the Jace OS one back.
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = filesystem
+Target = jace-os
+
+[Action]
+Description = Setting the system name to Jace OS...
+When = PostTransaction
+Exec = /usr/bin/install -m644 /usr/lib/jace-os/os-release /etc/os-release

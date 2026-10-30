@@ -1,0 +1,64 @@
+# Maintainer: Jace <https://github.com/okjace>
+# Jace OS itself: the desktop (labwc + Waybar), the start menu, Settings, Welcome,
+# Jace account sign-in, automatic updates, the boot splash and the login screen.
+# Built from the desktop/ folder of this repository.
+pkgname=jace-os
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="The Jace OS desktop, apps and settings"
+arch=(any)
+url="https://github.com/okjace/jace-os"
+license=(MIT)
+install=jace-os.install
+depends=(
+  # Wayland desktop
+  labwc waybar fuzzel mako swaybg swaylock swayidle wlopm wlr-randr wdisplays wlsunset
+  grim slurp wl-clipboard cliphist libnotify xdg-utils xdg-user-dirs
+  xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
+  xorg-xwayland qt5-wayland qt6-wayland
+  # Jace OS apps (Python + GTK 4 + libadwaita)
+  python python-gobject gtk4 libadwaita gtk4-layer-shell gsettings-desktop-schemas dconf
+  # Login screen and boot splash
+  greetd greetd-regreet cage plymouth
+  # System
+  polkit polkit-gnome sudo networkmanager network-manager-applet nm-connection-editor
+  bluez bluez-utils blueman pipewire pipewire-pulse pipewire-alsa wireplumber
+  pavucontrol brightnessctl playerctl power-profiles-daemon
+  pacman-contrib archlinux-keyring flatpak curl pciutils less base-devel
+  # Everyday apps
+  foot thunar thunar-volman thunar-archive-plugin file-roller gvfs gvfs-mtp tumbler
+  gnome-text-editor loupe gnome-calculator gnome-system-monitor mpv
+  # Look
+  papirus-icon-theme adwaita-icon-theme inter-font ttf-jetbrains-mono ttf-nerd-fonts-symbols
+  noto-fonts noto-fonts-emoji noto-fonts-cjk
+)
+optdepends=(
+  'jace-launcher-bin: Jace Launcher'
+  'jace-social-bin: Jace Social'
+  'jace-store-bin: Jace Store'
+  'zen-browser-bin: Zen Browser'
+)
+backup=(etc/jace-os/account.conf etc/greetd/jace-os.toml etc/greetd/jace-os-regreet.toml)
+
+pkgver() {
+  local base
+  base=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$startdir/../../desktop/usr/lib/jace-os/jaceos/__init__.py")
+  if git -C "$startdir" rev-parse >/dev/null 2>&1; then
+    printf '%s.r%s' "$base" "$(git -C "$startdir" rev-list --count HEAD)"
+  else
+    printf '%s' "$base"
+  fi
+}
+
+package() {
+  cp -a "$startdir/../../desktop/." "$pkgdir/"
+  chmod -R u+rwX,go+rX,go-w "$pkgdir"
+  find "$pkgdir/usr/bin" "$pkgdir/usr/lib/jace-os" -maxdepth 1 -type f \
+    ! -name '*.py' ! -name 'os-release' -exec chmod 755 {} +
+  find "$pkgdir" -name '__pycache__' -prune -exec rm -rf {} +
+  # The app PKGBUILDs, so refresh-apps can build a new release before the repository has it.
+  for p in jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin; do
+    install -Dm644 "$startdir/../$p/PKGBUILD" "$pkgdir/usr/share/jace-os/packages/$p/PKGBUILD"
+  done
+  install -Dm644 "$startdir/../../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -1,0 +1,5 @@
+#!/bin/sh
+# "Install Jace OS" on the live USB: walks through archinstall with the Jace OS
+# preset (Jace OS repository, desktop, apps and automatic updates already chosen).
+# You only pick the disk, language, keyboard, your name and password.
+exec foot --app-id jace-install --title "Install Jace OS" -e sudo /usr/lib/jace-os/install-jace-os

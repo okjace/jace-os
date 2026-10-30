@@ -1,0 +1,17 @@
+post_install() {
+  # Turn on the login screen, automatic updates, Wi-Fi, Bluetooth and power modes.
+  systemctl enable greetd.service jace-update.timer NetworkManager.service \
+    bluetooth.service power-profiles-daemon.service >/dev/null 2>&1
+  install -m644 /usr/lib/jace-os/os-release /etc/os-release
+  # The boot splash; the installer runs this again once the bootloader exists.
+  /usr/lib/jace-os/enable-splash >/dev/null 2>&1 || true
+}
+
+post_upgrade() {
+  install -m644 /usr/lib/jace-os/os-release /etc/os-release
+  plymouth-set-default-theme jace-os >/dev/null 2>&1 || true
+}
+
+post_remove() {
+  systemctl disable jace-update.timer >/dev/null 2>&1 || true
+}

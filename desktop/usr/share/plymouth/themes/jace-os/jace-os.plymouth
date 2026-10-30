@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Jace OS
+Description=The Jace OS logo on black, with a pulsing dot row while it starts
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/jace-os
+ScriptFile=/usr/share/plymouth/themes/jace-os/jace-os.script

@@ -1,0 +1,73 @@
+#!/bin/bash
+# Installs updates for Jace OS. Runs as root (the update timer, or pkexec from Settings).
+#
+#   jace-update               update everything: Arch packages (Linux kernel and
+#                             security fixes included), Jace apps, Zen Browser, Flatpaks
+#   jace-update --auto        the same, run by jace-update.timer without asking anyone
+#   jace-update <package>...  update just these packages (e.g. a Jace app)
+#   jace-update --enable-auto / --disable-auto   turn automatic updates on or off
+set -uo pipefail
+
+log=/var/log/jace-update.log
+state=/var/lib/jace-os
+mkdir -p "$state" /run/jace-os
+
+say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a "$log"; }
+
+if [ "$(id -u)" -ne 0 ]; then
+  exec pkexec "$0" "$@"
+fi
+
+case "${1:-}" in
+  --enable-auto)  systemctl enable --now jace-update.timer; exit ;;
+  --disable-auto) systemctl disable --now jace-update.timer; exit ;;
+esac
+
+auto=no
+[ "${1:-}" = "--auto" ] && { auto=yes; shift; }
+
+# Only one update at a time; wait for pacman if something else is using it.
+exec 9>/run/jace-os/update.lock
+flock -w 600 9 || { say "Another update is still running."; exit 1; }
+while [ -e /var/lib/pacman/db.lck ] && pgrep -x pacman >/dev/null; do sleep 5; done
+
+kernel_before=$(pacman -Q linux linux-lts 2>/dev/null)
+status=0
+
+if [ $# -gt 0 ]; then
+  say "Updating: $*"
+  # Jace apps and Zen Browser are self-contained, so updating just them is safe.
+  pacman -Sy --noconfirm >>"$log" 2>&1 &&
+    pacman -S --needed --noconfirm "$@" >>"$log" 2>&1 || status=$?
+else
+  say "Updating everything (auto: $auto)"
+  # New signing keys first, so the rest of the update can be verified.
+  pacman -Sy --needed --noconfirm archlinux-keyring >>"$log" 2>&1 || status=$?
+  if [ $status -eq 0 ]; then
+    pacman -Su --noconfirm >>"$log" 2>&1 || status=$?
+  fi
+  # New Jace app and Zen Browser releases, even before the Jace OS repository has them.
+  /usr/lib/jace-os/refresh-apps >>"$log" 2>&1 || say "Couldn't check GitHub for new app releases (continuing)."
+  if command -v flatpak >/dev/null; then
+    flatpak update -y --noninteractive >>"$log" 2>&1 || say "Flatpak update failed (continuing)."
+  fi
+  # Keep the two newest copies of each package in the cache, so a bad update can be rolled back.
+  command -v paccache >/dev/null && paccache -rk2 >>"$log" 2>&1
+fi
+
+if [ "$kernel_before" != "$(pacman -Q linux linux-lts 2>/dev/null)" ]; then
+  touch /run/jace-os/reboot-required
+  say "The Linux kernel was updated: restart to finish."
+fi
+
+if [ $status -eq 0 ]; then
+  date '+%F %T' > "$state/last-update"
+  rm -f "$state/last-error"
+  say "Updates finished."
+else
+  say "Updates failed (pacman exit $status). See $log."
+  tail -n 20 "$log" > "$state/last-error"
+fi
+# Tell every top bar to refresh its update count.
+pkill -RTMIN+8 waybar 2>/dev/null
+exit $status

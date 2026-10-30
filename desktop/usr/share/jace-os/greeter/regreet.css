@@ -1,0 +1,22 @@
+/* Jace OS login screen */
+window { background: transparent; }
+
+frame, .background, box.vertical > frame {
+  background: rgba(22, 24, 29, 0.86);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+button.suggested-action, button.default {
+  background: #3ddc84;
+  color: #0c1410;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+entry {
+  border-radius: 10px;
+  min-height: 38px;
+}
+
+label { color: #e6e8eb; }

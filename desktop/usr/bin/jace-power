@@ -1,0 +1,18 @@
+#!/bin/sh
+# The power menu: lock, sign out, sleep, restart or shut down.
+choice=$(printf '%s\n' \
+  "󰌾  Lock" \
+  "󰍃  Sign out" \
+  "󰤄  Sleep" \
+  "󰜉  Restart" \
+  "󰐥  Shut down" |
+  fuzzel --dmenu --config "$(jace-config-path fuzzel/fuzzel.ini)" \
+    --anchor top-right --x-margin 8 --width 22 --lines 5 --prompt "  " --placeholder "Power")
+
+case "$choice" in
+  *Lock) exec jace-lock ;;
+  *"Sign out") exec labwc --exit ;;
+  *Sleep) exec systemctl suspend ;;
+  *Restart) exec systemctl reboot ;;
+  *"Shut down") exec systemctl poweroff ;;
+esac

@@ -1,0 +1,27 @@
+# Started by labwc when a Jace OS session begins.
+# Put your own commands in ~/.config/labwc/autostart (that file replaces this one,
+# so start it with: . /usr/share/jace-os/xdg/labwc/autostart).
+
+# Let D-Bus activated apps and portals see the Wayland session.
+dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP >/dev/null 2>&1
+systemctl --user start xdg-desktop-portal.service >/dev/null 2>&1 &
+
+jace-wallpaper restore >/dev/null 2>&1 &
+waybar -c "$(jace-config-path waybar/config.jsonc)" -s "$(jace-config-path waybar/style.css)" >/dev/null 2>&1 &
+mako --config "$(jace-config-path mako/config)" >/dev/null 2>&1 &
+/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 >/dev/null 2>&1 &
+nm-applet --indicator >/dev/null 2>&1 &
+blueman-applet >/dev/null 2>&1 &
+wl-paste --watch cliphist store >/dev/null 2>&1 &
+jace-idle >/dev/null 2>&1 &
+jace-menu --daemon >/dev/null 2>&1 &
+# The apps that come with Jace OS, as custom apps in Jace Store's My apps (once each).
+jace-my-apps >/dev/null 2>&1 &
+
+# Your display settings and night light from Settings → Display.
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os"
+[ -r "$conf/displays" ] && sh "$conf/displays" >/dev/null 2>&1
+[ -e "$conf/nightlight" ] && wlsunset -t 4000 -T 6500 -S 07:00 -s 20:00 >/dev/null 2>&1 &
+
+# The welcome app (first login, and every login on the live USB).
+jace-welcome --autostart >/dev/null 2>&1 &
