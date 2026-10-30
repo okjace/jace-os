@@ -85,7 +85,10 @@ jobs:
         run: |
           cd out
           tag="${{ steps.version.outputs.tag }}"
-          mv ./*.iso "jace-os-${tag#v}-x86_64.iso"
+          iso=$(ls ./*.iso | head -n1)
+          want="./jace-os-${tag#v}-x86_64.iso"
+          # archiso already names it by date; rename only for tags like v1.2.0.
+          [ "$iso" = "$want" ] || mv "$iso" "$want"
           sha256sum ./*.iso > SHA256SUMS
           cat SHA256SUMS
           ls -lh
