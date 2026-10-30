@@ -1,0 +1,31 @@
+# Maintainer: Jace <https://github.com/okjace>
+# yay for Jace OS: the official prebuilt release from Jguer/yay, so Jace OS can install
+# from the AUR out of the box (Jace Store's AUR source uses it too).
+# tools/build-packages.sh sets pkgver to the newest GitHub release.
+pkgname=yay-bin
+pkgver=13.1.0
+pkgrel=1
+pkgdesc="Yet another yogurt: an AUR helper written in Go (prebuilt)"
+arch=(x86_64)
+url="https://github.com/Jguer/yay"
+license=(GPL-3.0-or-later)
+depends=(pacman git)
+optdepends=('sudo: run privileged commands')
+provides=(yay)
+conflicts=(yay)
+options=(!strip !debug)
+source=("yay_${pkgver}_x86_64.tar.gz::https://github.com/Jguer/yay/releases/download/v${pkgver}/yay_${pkgver}_x86_64.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "yay_${pkgver}_x86_64"
+  install -Dm755 yay "$pkgdir/usr/bin/yay"
+  install -Dm644 yay.8 "$pkgdir/usr/share/man/man8/yay.8"
+  install -Dm644 bash "$pkgdir/usr/share/bash-completion/completions/yay"
+  install -Dm644 zsh "$pkgdir/usr/share/zsh/site-functions/_yay"
+  install -Dm644 fish "$pkgdir/usr/share/fish/vendor_completions.d/yay.fish"
+  local mo
+  for mo in *.mo; do
+    install -Dm644 "$mo" "$pkgdir/usr/share/locale/${mo%.mo}/LC_MESSAGES/yay.mo"
+  done
+}

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Makes sure the Jace apps and Zen Browser are the newest releases on GitHub, even
+# Makes sure the Jace apps, Zen Browser and yay are the newest releases on GitHub, even
 # if the Jace OS package repository hasn't caught up yet: anything newer is built
 # from the Jace OS PKGBUILD (it just unpacks the official release) and installed.
 # Run as root by the installer and by jace-update.
@@ -46,4 +46,5 @@ refresh jace-launcher-bin okjace/jace-launcher v
 refresh jace-social-bin okjace/jace-social app-v
 refresh jace-store-bin okjace/jace-store desktop-v
 refresh zen-browser-bin zen-browser/desktop
+refresh yay-bin Jguer/yay v
 exit 0

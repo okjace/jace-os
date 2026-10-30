@@ -16,7 +16,7 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **AppImages just work**: double-click one to open it. Right-click it in Files and choose **Install** to put it in ~/Applications and the start menu, and in Jace Store → My apps.
 - **Virus protection** ([ClamAV](https://www.clamav.net)): real-time protection scans files in home folders as soon as they're downloaded, created or opened, and moves threats to quarantine. Every home folder is also scanned once a day, and virus signatures update by themselves. Settings → Virus protection has quick, full and folder scans, the quarantine (restore or delete) and switches for all of it. You get an alert whenever something is found. Real-time protection uses about 1 GB of memory, and you can turn it off.
 - **Automatic updates**: `jace-update.timer` installs Arch updates (the Linux kernel and security fixes), new Jace app and Zen Browser releases, and Flatpak updates every few hours while plugged in. You can see and install them yourself in Settings → Updates.
-- **The Jace apps**: Jace Launcher, Jace Social and Jace Store come preinstalled, along with Zen Browser as the default browser. The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
+- **The Jace apps**: Jace Launcher, Jace Social and Jace Store come preinstalled, along with Zen Browser as the default browser and [yay](https://github.com/Jguer/yay) for the AUR (Jace Store's AUR source uses it). The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
 - **Sign in with Jace**: the account page in Settings and the account button on the top bar sign in to [Jace](https://jaceo.vercel.app) (OAuth 2.0 with PKCE).
 - **Boot splash and login screen**: a Plymouth theme with the Jace OS logo, and a greetd + ReGreet login screen.
 
@@ -59,7 +59,7 @@ Server = https://github.com/okjace/jace-os/releases/download/repo
 ```
 
 ```bash
-sudo pacman -Syu jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin
+sudo pacman -Syu jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin yay-bin
 sudo /usr/lib/jace-os/enable-splash
 ```
 
@@ -71,7 +71,7 @@ Then choose **Jace OS** on the login screen.
 |---|---|
 | `desktop/` | Everything the `jace-os` package installs, laid out like `/`: the labwc, Waybar, mako and fuzzel configs (`usr/share/jace-os/xdg`), the Jace OS apps (`usr/lib/jace-os/jaceos`), scripts (`usr/bin`), the Plymouth theme, the login screen, wallpapers, the update timer and the installer preset. |
 | `desktop/usr/lib/jace-os/jaceos/` | The Python + GTK 4 + libadwaita apps: `settings.py`, `menu.py` (start menu), `welcome.py`, `installer.py` (with the `install-backend` script), `account.py` (Sign in with Jace), `updates.py`, `antivirus.py`, `store.py` (Jace Store, Flathub and Arch in Settings) and `appimage.py`. |
-| `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin` and `zen-browser-bin`, which unpack each app's official release. |
+| `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin`, `zen-browser-bin` and `yay-bin`, which unpack each app's official release. |
 | `archiso/` | The live USB profile (packages, live user and auto-login). `build.sh` combines it with archiso's `releng` boot setup. |
 | `site/` | The website on GitHub Pages. |
 | `tools/build-packages.sh` | Builds the package repository. |

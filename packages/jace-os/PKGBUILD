@@ -27,6 +27,8 @@ depends=(
   pacman-contrib archlinux-keyring flatpak curl pciutils less base-devel squashfs-tools fuse2 shared-mime-info
   # Virus protection
   clamav
+  # The AUR (yay-bin, from the Jace OS repository); Jace Store's AUR source uses it
+  yay
   # Everyday apps
   foot thunar thunar-volman thunar-archive-plugin file-roller gvfs gvfs-mtp tumbler
   gnome-text-editor loupe gnome-calculator gnome-system-monitor mpv
@@ -59,7 +61,7 @@ package() {
     ! -name '*.py' ! -name 'os-release' -exec chmod 755 {} +
   find "$pkgdir" -name '__pycache__' -prune -exec rm -rf {} +
   # The app PKGBUILDs, so refresh-apps can build a new release before the repository has it.
-  for p in jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin; do
+  for p in jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin yay-bin; do
     install -Dm644 "$startdir/../$p/PKGBUILD" "$pkgdir/usr/share/jace-os/packages/$p/PKGBUILD"
   done
   install -Dm644 "$startdir/../../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"

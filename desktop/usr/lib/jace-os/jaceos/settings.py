@@ -379,8 +379,8 @@ class SettingsWindow(Adw.ApplicationWindow):
         self.update_log_box = Gtk.ScrolledWindow(child=self.update_log, min_content_height=180, visible=False)
         g.add(self.update_log_box)
 
-        apps = Adw.PreferencesGroup(title="Jace apps", description="Jace Launcher, Jace Social, Jace Store and "
-                                                                   "Zen Browser update through Jace OS.")
+        apps = Adw.PreferencesGroup(title="Jace apps", description="Jace Launcher, Jace Social, Jace Store, "
+                                                                   "Zen Browser and yay update through Jace OS.")
         for a in result["apps"]:
             row = plain_row(title=a["name"], subtitle=(
                 f"{a['installed']}  →  {a['new']}" if a["update"] else

@@ -14,7 +14,7 @@ from jaceos import JACE_APPS, ok, run, which
 
 STATE = Path("/var/lib/jace-os")
 REBOOT_FLAG = Path("/run/jace-os/reboot-required")
-EXTRA_APPS = {"zen-browser-bin": "Zen Browser"}
+EXTRA_APPS = {"zen-browser-bin": "Zen Browser", "yay-bin": "yay"}
 
 
 def pacman_updates() -> list[dict]:
@@ -53,7 +53,8 @@ def check() -> dict:
     system = pacman_updates()
     by_name = {u["name"]: u for u in system}
     apps = []
-    for pkg, cmd, name, about in JACE_APPS + [(p, "", n, "Web browser") for p, n in EXTRA_APPS.items()]:
+    extra = [(p, "", n, "AUR helper" if p == "yay-bin" else "Web browser") for p, n in EXTRA_APPS.items()]
+    for pkg, cmd, name, about in JACE_APPS + extra:
         cur = installed_version(pkg)
         upd = by_name.pop(pkg, None)
         apps.append({"package": pkg, "command": cmd, "name": name, "about": about, "installed": cur,

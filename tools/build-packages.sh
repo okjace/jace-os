@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds the Jace OS packages into a pacman repository in out/repo (jace-os.db):
-# jace-os, jace-launcher-bin, jace-social-bin, jace-store-bin and zen-browser-bin.
+# jace-os, jace-launcher-bin, jace-social-bin, jace-store-bin, zen-browser-bin and yay-bin.
 # The app packages are set to the newest GitHub release of each app first, and only
 # packages whose new version isn't built or published yet are built.
 #
@@ -37,12 +37,13 @@ update_versions() {
   t=$(latest_tag okjace/jace-launcher v) && [ -n "$t" ] && set_version jace-launcher-bin "${t#v}"
   t=$(latest_tag okjace/jace-social app-v) && [ -n "$t" ] && set_version jace-social-bin "${t#app-v}"
   t=$(latest_tag okjace/jace-store desktop-v) && [ -n "$t" ] && set_version jace-store-bin "${t#desktop-v}"
+  t=$(latest_tag Jguer/yay v) && [ -n "$t" ] && set_version yay-bin "${t#v}"
   t=$(latest_tag zen-browser/desktop) && [ -n "$t" ] && sed -i "s/^_tag=.*/_tag=$t/" packages/zen-browser-bin/PKGBUILD
   grep -h '^pkgver=\|^_tag=' packages/*/PKGBUILD | sed 's/^/  /'
 }
 
 pkgs=("$@")
-[ ${#pkgs[@]} -eq 0 ] && pkgs=(jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin)
+[ ${#pkgs[@]} -eq 0 ] && pkgs=(jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin yay-bin)
 
 echo "==> Newest versions"
 update_versions || echo "  (couldn't reach GitHub; building the versions in the PKGBUILDs)"
