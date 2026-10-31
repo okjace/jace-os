@@ -8,15 +8,15 @@
     <item label="Snap left"><action name="SnapToEdge" direction="left" /></item>
     <item label="Snap right"><action name="SnapToEdge" direction="right" /></item>
     <item label="Always on top"><action name="ToggleAlwaysOnTop" /></item>
-    <menu id="client-send-to-menu" label="Move to desktop" />
+    <menu id="client-send-to-menu" />
     <separator />
     <item label="Close"><action name="Close" /></item>
   </menu>
 
   <menu id="root-menu">
     <item label="Open apps"><action name="Execute" command="jace-menu" /></item>
-    <item label="Terminal"><action name="Execute" command="foot" /></item>
-    <item label="Files"><action name="Execute" command="thunar" /></item>
+    <item label="Terminal"><action name="Execute" command="jace-terminal" /></item>
+    <item label="Files"><action name="Execute" command="nautilus --new-window" /></item>
     <separator />
     <item label="Change wallpaper"><action name="Execute" command="jace-settings --page appearance" /></item>
     <item label="Display settings"><action name="Execute" command="wdisplays" /></item>

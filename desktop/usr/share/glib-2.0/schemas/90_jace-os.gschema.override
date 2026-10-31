@@ -1,7 +1,7 @@
 # Jace OS defaults for GTK apps (change them in Settings → Appearance).
 [org.gnome.desktop.interface]
 color-scheme='prefer-dark'
-gtk-theme='Adwaita-dark'
+gtk-theme='adw-gtk3-dark'
 icon-theme='Papirus-Dark'
 cursor-theme='Adwaita'
 font-name='Inter 10'

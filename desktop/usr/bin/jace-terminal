@@ -1,0 +1,33 @@
+#!/bin/sh
+# Opens your terminal (Settings → Apps → Terminal; Ptyxis by default).
+#   jace-terminal                 a new terminal window
+#   jace-terminal -- cmd args...  run a command in a new terminal window
+#   jace-terminal --dir <folder>  start in that folder
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os/terminal"
+term=ptyxis
+[ -r "$conf" ] && term=$(head -n1 "$conf")
+command -v "$term" >/dev/null 2>&1 || for t in ptyxis kgx foot alacritty kitty wezterm konsole ghostty xterm; do
+  command -v "$t" >/dev/null 2>&1 && { term=$t; break; }
+done
+
+dir=
+if [ "${1:-}" = --dir ]; then dir=$2; shift 2; fi
+[ "${1:-}" = -- ] && shift
+# A folder that has gone away just means starting in your home folder.
+if [ -n "$dir" ]; then cd "$dir" 2>/dev/null || cd "$HOME" || exit 1; fi
+
+if [ $# -eq 0 ]; then
+  case "$term" in
+    ptyxis) exec ptyxis --new-window ${dir:+--working-directory="$dir"} ;;
+    *) exec "$term" ;;
+  esac
+fi
+case "$term" in
+  ptyxis) exec ptyxis --new-window ${dir:+--working-directory="$dir"} -- "$@" ;;
+  kgx) exec kgx -- "$@" ;;
+  foot) exec foot -- "$@" ;;
+  kitty) exec kitty -- "$@" ;;
+  wezterm) exec wezterm start -- "$@" ;;
+  alacritty|konsole|ghostty|xterm) exec "$term" -e "$@" ;;
+  *) exec "$term" -e "$@" ;;
+esac

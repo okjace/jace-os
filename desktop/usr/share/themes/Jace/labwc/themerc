@@ -2,9 +2,8 @@
 # minimize / maximize / close on the right like Windows.
 
 border.width: 1
-padding.height: 6
-padding.width: 10
-titlebar.height: 32
+window.titlebar.padding.height: 7
+window.titlebar.padding.width: 10
 
 window.active.border.color: #2f3540
 window.inactive.border.color: #22262e

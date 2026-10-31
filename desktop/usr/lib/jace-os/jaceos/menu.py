@@ -10,6 +10,7 @@ It stays running in the background (started at login with --daemon), so it
 opens instantly. Running jace-menu again while it's open closes it.
 """
 import json
+import os
 import sys
 
 import gi
@@ -25,6 +26,13 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from jaceos import account, config_dir, load_css, spawn  # noqa: E402
 
+# jace-menu preloads gtk4-layer-shell so the menu can sit above windows. It's loaded now,
+# so take it out of the environment: apps started from the menu must not inherit it
+# (it pulls GTK 4 into GTK 3 apps like Zen Browser and Electron apps, which then crash).
+for _var in ("LD_PRELOAD",):
+    os.environ.pop(_var, None)
+    GLib.unsetenv(_var)
+
 DEFAULTS = {
     "position": "top-left",        # top-left | top-center | center
     "layout": "grid",              # grid | list (how pinned apps are shown)
@@ -39,13 +47,13 @@ DEFAULTS = {
         "jace-launcher.desktop",
         "jace-social.desktop",
         "jace-store.desktop",
-        "thunar.desktop",
-        "foot.desktop",
+        "org.gnome.Nautilus.desktop",
+        "org.gnome.Ptyxis.desktop",
         "jace-settings.desktop",
         "org.gnome.TextEditor.desktop",
         "org.gnome.Loupe.desktop",
         "org.gnome.Calculator.desktop",
-        "mpv.desktop",
+        "org.gnome.Showtime.desktop",
         "org.gnome.SystemMonitor.desktop",
     ],
     "hidden": [],
@@ -214,7 +222,7 @@ class MenuWindow(Gtk.ApplicationWindow):
         self.account_button.connect("clicked", lambda *_: self.run(["jace-settings", "--page", "account"]))
         footer.append(self.account_button)
         for icon_name, tip, cmd in (
-            ("folder-symbolic", "Files", ["thunar"]),
+            ("folder-symbolic", "Files", ["nautilus", "--new-window"]),
             ("emblem-system-symbolic", "Settings", ["jace-settings"]),
             ("system-shutdown-symbolic", "Power", ["jace-power"]),
         ):
@@ -305,7 +313,9 @@ class MenuWindow(Gtk.ApplicationWindow):
 
     def launch(self, app: Gio.AppInfo):
         try:
-            app.launch([], Gdk.Display.get_default().get_app_launch_context())
+            ctx = Gdk.Display.get_default().get_app_launch_context()
+            ctx.unsetenv("LD_PRELOAD")
+            app.launch([], ctx)
         except GLib.Error:
             pass
         self.close_menu()

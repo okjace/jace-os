@@ -17,5 +17,5 @@ action=$(notify-send -a "Screenshot" -i "$file" -A open=Open -A folder="Show in 
   "Screenshot saved" "Copied to the clipboard too.")
 case "$action" in
   open) xdg-open "$file" ;;
-  folder) thunar "$dir" ;;
+  folder) nautilus "$dir" ;;
 esac

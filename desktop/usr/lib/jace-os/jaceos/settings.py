@@ -2,7 +2,7 @@
 
   jace-settings [--page <name>]
 
-Pages: account, updates, security, network, bluetooth, display, sound, appearance, menu,
+Pages: account, updates, security, shortcuts, network, bluetooth, display, sound, appearance, menu,
 windows, keyboard, power, datetime, apps, users, about.
 """
 import json
@@ -22,7 +22,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import antivirus, store  # noqa: E402
+from jaceos import antivirus, shortcuts, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
@@ -37,6 +37,7 @@ PAGES = [
     ("menu", "Start menu", "view-app-grid-symbolic"),
     ("windows", "Windows & desktops", "preferences-desktop-apps-symbolic"),
     ("keyboard", "Keyboard & mouse", "input-keyboard-symbolic"),
+    ("shortcuts", "Keyboard shortcuts", "preferences-desktop-keyboard-shortcuts-symbolic"),
     ("power", "Power & battery", "battery-good-symbolic"),
     ("datetime", "Date & time", "preferences-system-time-symbolic"),
     ("apps", "Apps", "application-x-addon-symbolic"),
@@ -422,7 +423,7 @@ class SettingsWindow(Adw.ApplicationWindow):
                             "Every few hours when plugged in: Linux, security fixes, Jace apps and everything else",
                             result["auto"], self._set_auto))
         auto.add(link_row("Update history", "/var/log/jace-update.log",
-                          ["foot", "-e", "less", "+G", "/var/log/jace-update.log"], "document-open-recent-symbolic"))
+                          ["jace-terminal", "--", "less", "+G", "/var/log/jace-update.log"], "document-open-recent-symbolic"))
         if result["last_error"]:
             auto.add(plain_row(title="The last update didn't finish",
                                    subtitle=result["last_error"].splitlines()[-1][:200]))
@@ -920,7 +921,8 @@ class SettingsWindow(Adw.ApplicationWindow):
 
     def _set_scheme(self, v):
         gsettings_set("org.gnome.desktop.interface", "color-scheme", v)
-        gsettings_set("org.gnome.desktop.interface", "gtk-theme", "Adwaita-dark" if v == "prefer-dark" else "Adwaita")
+        # adw-gtk3 makes older GTK 3 apps look like the libadwaita ones.
+        gsettings_set("org.gnome.desktop.interface", "gtk-theme", "adw-gtk3-dark" if v == "prefer-dark" else "adw-gtk3")
 
     def _set_wallpaper(self, path):
         subprocess.run(["jace-wallpaper", "set", path])
@@ -1076,9 +1078,10 @@ class SettingsWindow(Adw.ApplicationWindow):
                                                                "to maximize, to a side to snap.")
         g.add(switch_row("Drag to the top to maximize", None, yes("snapping/topMaximize"),
                          lambda on: lc.set("snapping/topMaximize", "yes" if on else "no")))
-        snap_on = lc.get("snapping/range", default_labwc("snapping/range", "12")) != "0"
+        mine = lc.root.find("snapping/range")
+        snap_on = mine is None or mine.get("inner", "12") != "0"
         g.add(switch_row("Snap windows to the screen edges", "Drag a window to the left or right to fill half",
-                         snap_on, lambda on: lc.set("snapping/range", "12" if on else "0")))
+                         snap_on, lambda on: self._set_snap(lc, on)))
         g.add(combo_row("Window buttons", None,
                         [("icon:iconify,max,close", "Right, like Windows"), ("close,iconify,max:", "Left, like macOS")],
                         lc.get("theme/titlebar/layout", default_labwc("theme/titlebar/layout", "icon:iconify,max,close")),
@@ -1098,27 +1101,57 @@ class SettingsWindow(Adw.ApplicationWindow):
         dg.add(spin)
         page.add(dg)
 
-        kg = Adw.PreferencesGroup(title="Keyboard shortcuts")
-        for keys, what in (
-            ("Windows key", "Open the start menu"),
-            ("Alt+Tab", "Switch windows"),
-            ("Win+← / Win+→", "Snap to the left or right half"),
-            ("Win+↑ / Win+↓", "Maximize / restore or minimize"),
-            ("Win+D", "Show the desktop"),
-            ("Win+E", "Files"),
-            ("Win+I", "Settings"),
-            ("Win+L", "Lock"),
-            ("Win+Shift+S", "Screenshot of an area"),
-            ("Print Screen", "Screenshot of the whole screen"),
-            ("Ctrl+Shift+Esc", "System Monitor (Task Manager)"),
-            ("Ctrl+Alt+T", "Terminal"),
-            ("Alt+F4", "Close the window"),
-        ):
-            row = plain_row(title=what)
-            row.add_suffix(Gtk.Label(label=keys, css_classes=["dim-label", "monospace"]))
-            kg.add(row)
-        page.add(kg)
+        sg = Adw.PreferencesGroup(title="Scrolling", description="Off by default, so scrolling never moves you "
+                                                                 "somewhere you didn't mean to go.")
+        sg.add(switch_row("Scroll on the desktop to switch desktops", None, self._scroll_on(lc, "Root"),
+                          lambda on: self._set_scroll(lc, "Root", on)))
+        sg.add(switch_row("Scroll on a title bar to roll the window up", None, self._scroll_on(lc, "TitleBar"),
+                          lambda on: self._set_scroll(lc, "TitleBar", on)))
+        page.add(sg)
+
+        page.add(group("", None, link_row("Keyboard shortcuts", "Change any shortcut, or add your own",
+                                          ["jace-settings", "--page", "shortcuts"],
+                                          "preferences-desktop-keyboard-shortcuts-symbolic")))
         return page
+
+    @staticmethod
+    def _set_snap(lc, on):
+        rng = lc.node("snapping/range")
+        rng.text = None
+        rng.set("inner", "12" if on else "0")
+        rng.set("outer", "12" if on else "0")
+        lc.save()
+
+    SCROLL_ACTIONS = {
+        "Root": ('<action name="GoToDesktop" to="left" wrap="yes" />', '<action name="GoToDesktop" to="right" wrap="yes" />'),
+        "TitleBar": ('<action name="Unshade" /><action name="Focus" />', '<action name="Unfocus" /><action name="Shade" />'),
+    }
+
+    @staticmethod
+    def _scroll_context(lc, name):
+        mouse = lc.node("mouse")
+        ctx = next((c for c in mouse.findall("context") if c.get("name") == name), None)
+        if ctx is None:
+            ctx = ET.SubElement(mouse, "context", name=name)
+        return ctx
+
+    def _scroll_on(self, lc, name):
+        ctx = next((c for c in lc.root.findall("mouse/context") if c.get("name") == name), None)
+        if ctx is None:
+            return False      # the Jace OS default: off
+        up = next((m for m in ctx.findall("mousebind") if m.get("direction") == "Up"), None)
+        return up is not None and up.find("action") is not None and up.find("action").get("name") != "None"
+
+    def _set_scroll(self, lc, name, on):
+        ctx = self._scroll_context(lc, name)
+        for m in [m for m in ctx.findall("mousebind") if m.get("action") == "Scroll"]:
+            ctx.remove(m)
+        up, down = self.SCROLL_ACTIONS[name] if on else ('<action name="None" />', '<action name="None" />')
+        for direction, actions in (("Up", up), ("Down", down)):
+            mb = ET.SubElement(ctx, "mousebind", direction=direction, action="Scroll")
+            for act in ET.fromstring(f"<x>{actions}</x>"):
+                mb.append(act)
+        lc.save()
 
     def _set_desktops(self, lc, n):
         d = lc.node("desktops")
@@ -1194,6 +1227,154 @@ class SettingsWindow(Adw.ApplicationWindow):
                        combo_row("Pointer size", None, [("24", "Normal"), ("32", "Large"), ("48", "Larger")], cursor,
                                  lambda v: gsettings_set("org.gnome.desktop.interface", "cursor-size", v))))
         return page
+
+    # --- Keyboard shortcuts ---------------------------------------------------------------------------
+
+    def page_shortcuts(self):
+        page = Adw.PreferencesPage()
+        data = shortcuts.load()
+        top = Adw.PreferencesGroup(description="Click a shortcut to change it. Changes work right away.")
+        add = Gtk.Button(label="Add a shortcut", css_classes=["suggested-action", "pill"], halign=Gtk.Align.START)
+        add.connect("clicked", lambda *_: self._shortcut_dialog(data, None))
+        top.add(add)
+        page.add(top)
+        for grp in shortcuts.GROUPS:
+            g = Adw.PreferencesGroup(title=grp)
+            for sid, g_name, title, _defaults, _actions in shortcuts.SHORTCUTS:
+                if g_name == grp:
+                    g.add(self._shortcut_row(data, sid, title))
+            page.add(g)
+        mine = Adw.PreferencesGroup(title="Your shortcuts", description="Shortcuts that run a command or open an app.")
+        for c in data["custom"]:
+            mine.add(self._shortcut_row(data, c["id"], c["title"], c["command"]))
+        if not data["custom"]:
+            mine.add(plain_row(title="None yet", subtitle="Use Add a shortcut to make one"))
+        page.add(mine)
+        page.add(group("", None, button_row("Reset all shortcuts", "Back to the Jace OS shortcuts", "Reset",
+                                            lambda: self._shortcuts_reset_all(data))))
+        return page
+
+    def _shortcut_row(self, data, sid, title, command=None):
+        keys = shortcuts.keys_for(data, sid)
+        row = plain_row(title=title, subtitle=command or "", activatable=True)
+        label = ", ".join(shortcuts.pretty(k) for k in keys) or "Off"
+        row.add_suffix(Gtk.Label(label=label, css_classes=["dim-label"] + (["monospace"] if keys else [])))
+        if sid in data["keys"]:
+            row.add_suffix(Gtk.Image(icon_name="document-edit-symbolic", tooltip_text="Changed by you"))
+        row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
+        row.connect("activated", lambda *_: self._shortcut_dialog(data, sid))
+        return row
+
+    def _shortcuts_reset_all(self, data):
+        data["keys"].clear()
+        shortcuts.save(data)
+        self.toast("Shortcuts reset")
+        self.reload()
+
+    def _shortcut_dialog(self, data, sid):
+        """Change a shortcut (sid) or add one (sid None): press the keys, then Set."""
+        custom = next((c for c in data["custom"] if c["id"] == sid), None)
+        builtin = shortcuts.BY_ID.get(sid)
+        title = builtin[2] if builtin else (custom["title"] if custom else "New shortcut")
+        captured = {"key": None}
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        name = cmd = None
+        if builtin is None:
+            lb = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+            name = Adw.EntryRow(title="Name", text=custom["title"] if custom else "")
+            cmd = Adw.EntryRow(title="Command to run (for example: zen-browser)", text=custom["command"] if custom else "")
+            lb.append(name)
+            lb.append(cmd)
+            box.append(lb)
+        current = shortcuts.keys_for(data, sid) if sid else []
+        box.append(Gtk.Label(label="Now: " + (", ".join(shortcuts.pretty(k) for k in current) or "off"),
+                             css_classes=["dim-label"]))
+        press = Gtk.Label(label="Press the new shortcut…", css_classes=["title-2"], margin_top=6, margin_bottom=6)
+        box.append(press)
+        warn = Gtk.Label(css_classes=["caption", "warning"], wrap=True, visible=False)
+        box.append(warn)
+
+        d = Adw.AlertDialog(heading=title, body="Hold Win, Ctrl, Alt or Shift and press a key. "
+                                                 "Tap Win alone for the Windows key.")
+        d.set_extra_child(box)
+        d.add_response("cancel", "Cancel")
+        if sid and builtin:
+            d.add_response("reset", "Reset")
+        if sid:
+            d.add_response("off", "Remove" if custom else "Turn off")
+            d.set_response_appearance("off", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.add_response("set", "Set")
+        d.set_response_appearance("set", Adw.ResponseAppearance.SUGGESTED)
+        d.set_response_enabled("set", builtin is None and custom is not None)
+
+        keyctl = Gtk.EventControllerKey()
+        keyctl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+
+        def pressed(_c, keyval, _code, state):
+            # Typing into the name and command boxes shouldn't count as a shortcut.
+            if name is not None and (name.has_focus() or cmd.has_focus() or
+                                     name.get_focus_child() or cmd.get_focus_child()):
+                if not (state & (Gdk.ModifierType.SUPER_MASK | Gdk.ModifierType.CONTROL_MASK |
+                                 Gdk.ModifierType.ALT_MASK)):
+                    return False
+            key = shortcuts.from_event(keyval, state)
+            if key is None:
+                return False
+            if key == "Escape" and not captured["key"]:
+                return False
+            captured["key"] = key
+            press.set_label(shortcuts.pretty(key))
+            other = shortcuts.used_by(data, key, sid or "")
+            warn.set_visible(bool(other))
+            if other:
+                warn.set_label(f"{shortcuts.pretty(key)} is used by “{other[1]}”. Set moves it here.")
+            d.set_response_enabled("set", True)
+            return True
+
+        def released(_c, keyval, _code, state):
+            # The Windows key on its own: set when it's let go without another key.
+            from gi.repository import Gdk as _Gdk
+            if _Gdk.keyval_name(keyval) in ("Super_L", "Super_R") and captured["key"] is None:
+                captured["key"] = "Super_L"
+                press.set_label("Win")
+                d.set_response_enabled("set", True)
+
+        keyctl.connect("key-pressed", pressed)
+        keyctl.connect("key-released", released)
+        d.add_controller(keyctl)
+
+        def respond(_d, r):
+            if r == "set":
+                key = captured["key"]
+                if builtin is None:
+                    if not name.get_text().strip() or not cmd.get_text().strip():
+                        self.toast("Give the shortcut a name and a command")
+                        return
+                    if custom:
+                        custom["title"], custom["command"] = name.get_text().strip(), cmd.get_text().strip()
+                        if key:
+                            shortcuts.set_keys(data, sid, [key])
+                    else:
+                        shortcuts.add_custom(data, name.get_text().strip(), cmd.get_text().strip(),
+                                             [key] if key else [])
+                elif key:
+                    shortcuts.set_keys(data, sid, [key])
+            elif r == "off":
+                if custom:
+                    shortcuts.remove_custom(data, sid)
+                else:
+                    shortcuts.set_keys(data, sid, [])
+            elif r == "reset":
+                shortcuts.reset(data, sid)
+            else:
+                return
+            shortcuts.save(data)
+            self.toast("Shortcut saved")
+            self.reload()
+
+        d.connect("response", respond)
+        d.present(self)
 
     # --- Power -------------------------------------------------------------------------------------
 
@@ -1306,6 +1487,14 @@ class SettingsWindow(Adw.ApplicationWindow):
             page.add(ig)
 
         g = Adw.PreferencesGroup(title="Default apps", description="Which app opens links and files.")
+        terms = [(t, n) for t, n in (("ptyxis", "Ptyxis"), ("kgx", "Console"), ("foot", "foot"),
+                                     ("alacritty", "Alacritty"), ("kitty", "kitty"), ("wezterm", "WezTerm"),
+                                     ("ghostty", "Ghostty"), ("konsole", "Konsole")) if which(t)]
+        if terms:
+            conf = config_dir() / "terminal"
+            current = conf.read_text().strip() if conf.exists() else "ptyxis"
+            g.add(combo_row("Terminal", "Opened by Win+Enter, Ctrl+Alt+T and Open in Terminal", terms, current,
+                            lambda v: (conf.write_text(v + "\n"), self.toast(f"Terminal: {v}"))))
         for title, types in (
             ("Web browser", ["x-scheme-handler/http", "x-scheme-handler/https", "text/html"]),
             ("Email", ["x-scheme-handler/mailto"]),
@@ -1461,7 +1650,7 @@ class SettingsWindow(Adw.ApplicationWindow):
         row = plain_row(title=name, subtitle=f"{user} · {'Administrator' if 'wheel' in groups else 'Standard user'}")
         row.add_prefix(Adw.Avatar(size=40, text=name, show_initials=True))
         g.add(row)
-        g.add(link_row("Change your password", None, ["foot", "--title", "Change password", "-e", "passwd"],
+        g.add(link_row("Change your password", None, ["jace-terminal", "--", "passwd"],
                        "dialog-password-symbolic"))
         page.add(g)
         others = [ln.split(":") for ln in run(["getent", "passwd"]).splitlines()]

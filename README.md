@@ -11,6 +11,7 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **Windows-style windows** ([labwc](https://labwc.github.io), Wayland): minimize, maximize and close on the right. Drag a window to the top to maximize it, or to a side to snap it. Alt+Tab, Win+arrows, Alt+F4, Win+D and Win+L all work.
 - **A start menu on the Windows key**: pinned apps, all apps and search as you type. Right-click an app to pin or hide it. Settings → Start menu changes where it opens, its size and layout, and what's pinned.
 - **A top bar inspired by niri** (Waybar): rounded islands with the start button, desktops and open windows on the left, the clock in the middle, and tray, updates, sound, network, Bluetooth, battery, your Jace account and power on the right.
+- **Modern apps**: GNOME's libadwaita apps throughout: Files (Nautilus), Ptyxis terminal, Text Editor, Image Viewer, Showtime videos, Decibels music, Papers documents, Calculator, Disks and System Monitor. Older GTK 3 apps get the matching adw-gtk3 theme, and Qt apps follow it.
 - **Settings**: your Jace account, updates, virus protection, Wi-Fi, Bluetooth, displays (resolution, scale, night light), sound, appearance and wallpaper, start menu, windows and desktops, keyboard and touchpad, power, date and time, apps (with Jace Store built in), default apps, users and About.
 - **Get apps in Settings**: search Jace Store, Flathub and the Arch repositories from Settings → Apps and install with one click. Jace Store downloads are checked against the store's SHA-512. Everything you install there also shows up in Jace Store → My apps.
 - **AppImages just work**: double-click one to open it. Right-click it in Files and choose **Install** to put it in ~/Applications and the start menu, and in Jace Store → My apps.
@@ -22,6 +23,8 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 
 ## Keyboard shortcuts
 
+Change any of these, turn them off, or add your own in Settings → Keyboard shortcuts. Pick your terminal in Settings → Apps.
+
 | Keys | What it does |
 |---|---|
 | Win | Start menu (start typing to search) |
@@ -32,7 +35,8 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 | Win+E / Win+I / Win+L | Files / Settings / Lock |
 | Win+Shift+S / Print | Screenshot an area / the whole screen |
 | Ctrl+Shift+Esc | System Monitor |
-| Ctrl+Alt+T | Terminal |
+| Ctrl+Alt+T or Win+Enter | Terminal |
+| Win+. | Emoji and symbols |
 
 ## Trying and installing
 

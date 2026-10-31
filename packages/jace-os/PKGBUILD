@@ -29,11 +29,12 @@ depends=(
   clamav
   # The AUR (yay-bin, from the Jace OS repository); Jace Store's AUR source uses it
   yay
-  # Everyday apps
-  foot thunar thunar-volman thunar-archive-plugin file-roller gvfs gvfs-mtp tumbler
-  gnome-text-editor loupe gnome-calculator gnome-system-monitor mpv
+  # Everyday apps (modern GNOME apps: GTK 4 + libadwaita)
+  nautilus nautilus-python sushi file-roller gvfs gvfs-mtp ptyxis
+  gnome-text-editor loupe gnome-calculator gnome-system-monitor gnome-disk-utility baobab
+  showtime decibels papers gnome-characters
   # Look
-  papirus-icon-theme adwaita-icon-theme inter-font ttf-jetbrains-mono ttf-nerd-fonts-symbols
+  adw-gtk-theme papirus-icon-theme adwaita-icon-theme inter-font ttf-jetbrains-mono ttf-nerd-fonts-symbols
   noto-fonts noto-fonts-emoji noto-fonts-cjk
 )
 optdepends=(

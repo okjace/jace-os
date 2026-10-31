@@ -35,7 +35,8 @@
   </theme>
 
   <!-- Alt+Tab shows a list of open windows with their icons, like Windows. -->
-  <windowSwitcher show="yes" preview="yes" outlines="yes" allWorkspaces="no">
+  <windowSwitcher preview="yes" outlines="yes" unshade="yes">
+    <osd show="yes" style="classic" output="all" />
     <fields>
       <field content="icon" width="5%" />
       <field content="title" width="95%" />
@@ -44,7 +45,7 @@
 
   <!-- Drag to an edge to snap, drag to the top to maximize (Aero Snap). -->
   <snapping>
-    <range>12</range>
+    <range inner="12" outer="12" />
     <overlay enabled="yes">
       <delay inner="300" outer="300" />
     </overlay>
@@ -118,16 +119,16 @@
     <keybind key="W-4"><action name="GoToDesktop" to="4" /></keybind>
 
     <!-- Apps -->
-    <keybind key="W-e"><action name="Execute" command="thunar" /></keybind>
-    <keybind key="W-Return"><action name="Execute" command="foot" /></keybind>
-    <keybind key="C-A-t"><action name="Execute" command="foot" /></keybind>
+    <keybind key="W-e"><action name="Execute" command="nautilus --new-window" /></keybind>
+    <keybind key="W-Return"><action name="Execute" command="jace-terminal" /></keybind>
+    <keybind key="C-A-t"><action name="Execute" command="jace-terminal" /></keybind>
     <keybind key="W-i"><action name="Execute" command="jace-settings" /></keybind>
     <keybind key="W-a"><action name="Execute" command="jace-account" /></keybind>
     <keybind key="C-S-Escape"><action name="Execute" command="gnome-system-monitor" /></keybind>
     <keybind key="C-A-Delete"><action name="Execute" command="jace-power" /></keybind>
     <keybind key="W-l"><action name="Execute" command="jace-lock" /></keybind>
     <keybind key="W-x"><action name="Execute" command="jace-power" /></keybind>
-    <keybind key="W-period"><action name="Execute" command="jace-emoji" /></keybind>
+    <keybind key="W-period"><action name="Execute" command="gnome-characters" /></keybind>
 
     <!-- Screenshots: Print = whole screen, Win+Shift+S = pick an area (Snipping Tool). -->
     <keybind key="Print"><action name="Execute" command="jace-screenshot screen" /></keybind>
@@ -158,6 +159,17 @@
       <mousebind button="Left" action="Press" />
       <mousebind button="Right" action="Press"><action name="ShowMenu" menu="root-menu" /></mousebind>
       <mousebind button="Middle" action="Press" />
+    </context>
+    <!-- Scrolling doesn't do anything surprising: labwc's defaults (scroll on a title bar
+         to roll the window up, on the desktop to switch desktops) are off. Turn them on in
+         Settings → Windows & desktops. -->
+    <context name="TitleBar">
+      <mousebind direction="Up" action="Scroll"><action name="None" /></mousebind>
+      <mousebind direction="Down" action="Scroll"><action name="None" /></mousebind>
+    </context>
+    <context name="Root">
+      <mousebind direction="Up" action="Scroll"><action name="None" /></mousebind>
+      <mousebind direction="Down" action="Scroll"><action name="None" /></mousebind>
     </context>
     <!-- Win+drag moves a window from anywhere inside it. -->
     <context name="Client">

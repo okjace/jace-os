@@ -4,6 +4,6 @@
 #   jace-install --advanced   archinstall with the Jace OS preset, for dual-booting or your own
 #                             partitions: pick the disk layout, language, user and time zone yourself
 if [ "$1" = --advanced ]; then
-  exec foot --app-id jace-install --title "Install Jace OS (advanced)" -e sudo /usr/lib/jace-os/install-jace-os
+  exec jace-terminal -- sudo /usr/lib/jace-os/install-jace-os
 fi
 exec jace-installer
