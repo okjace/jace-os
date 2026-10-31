@@ -167,6 +167,8 @@ home="$target/home/$username"
 install -d "$home/.config/labwc"
 echo "XKB_DEFAULT_LAYOUT=$keyboard" > "$home/.config/labwc/environment"
 arch-chroot "$target" chown -R "$username:$username" "/home/$username/.config"
+# Desktop, Documents, Downloads, Music, Pictures, Videos… ready from the first sign-in.
+arch-chroot "$target" runuser -u "$username" -- xdg-user-dirs-update || true
 if [ "$autologin" = true ]; then
   printf '\n[initial_session]\ncommand = "jace-session"\nuser = "%s"\n' "$username" >> "$target/etc/greetd/jace-os.toml"
 fi

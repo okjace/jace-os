@@ -16,6 +16,9 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **Get apps in Settings**: search Jace Store, Flathub and the Arch repositories from Settings → Apps and install with one click. Jace Store downloads are checked against the store's SHA-512. Everything you install there also shows up in Jace Store → My apps.
 - **AppImages just work**: double-click one to open it. Right-click it in Files and choose **Install** to put it in ~/Applications and the start menu, and in Jace Store → My apps.
 - **Virus protection** ([ClamAV](https://www.clamav.net)): real-time protection scans files in home folders as soon as they're downloaded, created or opened, and moves threats to quarantine. Every home folder is also scanned once a day, and virus signatures update by themselves. Settings → Virus protection has quick, full and folder scans, the quarantine (restore or delete) and switches for all of it. You get an alert whenever something is found. Real-time protection uses about 1 GB of memory, and you can turn it off.
+- **Clipboard manager**: Win+V shows everything you copied, pictures included. Search it, pin things to keep them, and click to paste.
+- **A top bar you can change**: Settings → Top bar turns modules on and off (Now Playing, weather, processor, memory, Do not disturb, Keep awake and more), moves it to the bottom, and sets the clock (12 or 24 hours, seconds, date). Click the clock (or Win+N) for the calendar.
+- **Face unlock**: Settings → Face unlock sets up Howdy, the Linux Windows Hello, for the lock screen, sign-in and password prompts. Best with an infrared camera.
 - **Automatic updates**: `jace-update.timer` installs Arch updates (the Linux kernel and security fixes), new Jace app and Zen Browser releases, and Flatpak updates every few hours while plugged in. You can see and install them yourself in Settings → Updates.
 - **The Jace apps**: Jace Launcher, Jace Social and Jace Store come preinstalled, along with Zen Browser as the default browser and [yay](https://github.com/Jguer/yay) for the AUR (Jace Store's AUR source uses it). The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
 - **Sign in with Jace**: the account page in Settings and the account button on the top bar sign in to [Jace](https://jaceo.vercel.app) (OAuth 2.0 with PKCE).
@@ -37,6 +40,8 @@ Change any of these, turn them off, or add your own in Settings → Keyboard sho
 | Ctrl+Shift+Esc | System Monitor |
 | Ctrl+Alt+T or Win+Enter | Terminal |
 | Win+. | Emoji and symbols |
+| Win+V | Clipboard history |
+| Win+N | Calendar |
 
 ## Trying and installing
 

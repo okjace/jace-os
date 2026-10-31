@@ -4,7 +4,7 @@
 pkgname=zen-browser-bin
 _tag=1.24b
 pkgver=${_tag//-/_}
-pkgrel=1
+pkgrel=2
 pkgdesc="Zen Browser: a calm, fast Firefox-based web browser"
 arch=(x86_64)
 url="https://zen-browser.app"
@@ -22,15 +22,16 @@ package() {
   cp -a zen "$pkgdir/opt/zen-browser"
   ln -s /opt/zen-browser/zen "$pkgdir/usr/bin/zen-browser"
 
-  # Jace OS defaults: no default-browser nagging, no update prompts (pacman updates it).
-  install -Dm644 /dev/stdin "$pkgdir/opt/zen-browser/distribution/policies.json" <<'POLICIES'
-{
-  "policies": {
-    "DisableAppUpdate": true,
-    "DontCheckDefaultBrowser": true
-  }
-}
-POLICIES
+  # Jace OS defaults, as ordinary default prefs (not enterprise policies, which make Zen
+  # say "Your browser is being managed by your organization"): no default-browser prompt,
+  # and no self-updates, because pacman keeps Zen up to date. People can still change these.
+  install -Dm644 /dev/stdin "$pkgdir/opt/zen-browser/defaults/pref/jace-os.js" <<'PREFS'
+// Jace OS defaults for Zen Browser
+pref("browser.shell.checkDefaultBrowser", false);
+pref("app.update.auto", false);
+pref("app.update.background.enabled", false);
+pref("app.update.badgeWaitTime", 31536000);
+PREFS
 
   for size in 16 32 48 64 128; do
     [ -f "zen/browser/chrome/icons/default/default${size}.png" ] &&

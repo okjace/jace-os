@@ -1,0 +1,3 @@
+#!/bin/sh
+# Opens (or, if it is open, closes) the Jace OS clipboard pop-up.
+exec /usr/lib/jace-os/run-popup clipboard "$@"

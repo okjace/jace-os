@@ -30,6 +30,8 @@ SHORTCUTS = [
     ("lock", "General", "Lock the screen", ["W-l"], _exec("jace-lock")),
     ("power", "General", "Power menu (sign out, restart, shut down)", ["W-x", "C-A-Delete"], _exec("jace-power")),
     ("emoji", "General", "Emoji and symbols", ["W-period"], _exec("gnome-characters")),
+    ("clipboard", "General", "Clipboard history", ["W-v"], _exec("jace-clipboard")),
+    ("calendar", "General", "Calendar", ["W-n"], _exec("jace-calendar")),
 
     ("next-window", "Windows", "Switch windows", ["A-Tab", "W-Tab"], '<action name="NextWindow" />'),
     ("previous-window", "Windows", "Switch windows backwards", ["A-S-Tab"], '<action name="PreviousWindow" />'),

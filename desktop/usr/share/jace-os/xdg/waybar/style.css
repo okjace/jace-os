@@ -31,6 +31,18 @@ tooltip {
 #bluetooth,
 #battery,
 #custom-jace,
+#mpris,
+#privacy,
+#custom-weather,
+#cpu,
+#memory,
+#temperature,
+#disk,
+#custom-clipboard,
+#custom-dnd,
+#idle_inhibitor,
+#power-profiles-daemon,
+#backlight,
 #custom-power {
   background: rgba(22, 24, 29, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -97,3 +109,15 @@ tooltip {
 #battery:hover, #custom-jace:hover, #custom-updates:hover {
   border-color: rgba(61, 220, 132, 0.5);
 }
+
+/* Now playing */
+#mpris { color: #e6e8eb; }
+#mpris.paused { color: #8b919c; }
+
+/* Camera, microphone or screen in use */
+#privacy { background: rgba(255, 107, 107, 0.18); border-color: rgba(255, 107, 107, 0.5); }
+#privacy-item { padding: 0 2px; }
+
+#custom-dnd.on, #idle_inhibitor.activated { color: #3ddc84; }
+#temperature.critical { color: #ff6b6b; }
+#clock:hover, #mpris:hover, #custom-clipboard:hover, #custom-dnd:hover { border-color: rgba(61, 220, 132, 0.5); }

@@ -10,7 +10,6 @@ It stays running in the background (started at login with --daemon), so it
 opens instantly. Running jace-menu again while it's open closes it.
 """
 import json
-import os
 import sys
 
 import gi
@@ -26,12 +25,9 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from jaceos import account, config_dir, load_css, spawn  # noqa: E402
 
-# jace-menu preloads gtk4-layer-shell so the menu can sit above windows. It's loaded now,
-# so take it out of the environment: apps started from the menu must not inherit it
-# (it pulls GTK 4 into GTK 3 apps like Zen Browser and Electron apps, which then crash).
-for _var in ("LD_PRELOAD",):
-    os.environ.pop(_var, None)
-    GLib.unsetenv(_var)
+from jaceos.popup import strip_preload  # noqa: E402
+
+strip_preload()   # apps started from the menu must not inherit gtk4-layer-shell
 
 DEFAULTS = {
     "position": "top-left",        # top-left | top-center | center
@@ -135,6 +131,7 @@ class AppButton(Gtk.Button):
         m.append("Unpin from Start" if pinned else "Pin to Start", f"menu.pin::{app_id}")
         if pinned:
             m.append("Move to front", f"menu.front::{app_id}")
+        m.append("Edit…", f"menu.edit::{app_id}")
         m.append("Hide from the menu", f"menu.hide::{app_id}")
         pop = Gtk.PopoverMenu.new_from_model(m)
         pop.set_parent(self)
@@ -159,12 +156,13 @@ class MenuWindow(Gtk.ApplicationWindow):
             # Not on a layer-shell compositor (e.g. testing elsewhere): a normal window.
             self.set_default_size(*SIZES[self.cfg["size"]][1:])
 
-        for name, fn in (("pin", self._toggle_pin), ("front", self._move_front), ("hide", self._hide)):
+        for name, fn in (("pin", self._toggle_pin), ("front", self._move_front), ("hide", self._hide),
+                         ("edit", self._edit)):
             act = Gio.SimpleAction.new(name, GLib.VariantType.new("s"))
             act.connect("activate", fn)
             self.add_action(act)
         group = Gio.SimpleActionGroup()
-        for name in ("pin", "front", "hide"):
+        for name in ("pin", "front", "hide", "edit"):
             group.add_action(self.lookup_action(name))
         self.insert_action_group("menu", group)
 
@@ -350,6 +348,9 @@ class MenuWindow(Gtk.ApplicationWindow):
         self.cfg["pinned"] = [app_id] + [i for i in self.cfg["pinned"] if i != app_id]
         save_config(self.cfg)
         self.refresh()
+
+    def _edit(self, _a, value):
+        self.run(["jace-settings", "--page", "menu", "--edit", value.get_string()])
 
     def _hide(self, _a, value):
         app_id = value.get_string()

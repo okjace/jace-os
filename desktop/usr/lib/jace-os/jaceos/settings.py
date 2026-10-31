@@ -2,7 +2,7 @@
 
   jace-settings [--page <name>]
 
-Pages: account, updates, security, shortcuts, network, bluetooth, display, sound, appearance, menu,
+Pages: account, updates, security, shortcuts, bar, face, network, bluetooth, display, sound, appearance, menu,
 windows, keyboard, power, datetime, apps, users, about.
 """
 import json
@@ -17,12 +17,12 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import antivirus, shortcuts, store  # noqa: E402
+from jaceos import antivirus, bar, clipboard, menu_edits, shortcuts, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
@@ -35,6 +35,7 @@ PAGES = [
     ("sound", "Sound", "audio-volume-high-symbolic"),
     ("appearance", "Appearance", "applications-graphics-symbolic"),
     ("menu", "Start menu", "view-app-grid-symbolic"),
+    ("bar", "Top bar", "view-continuous-symbolic"),
     ("windows", "Windows & desktops", "preferences-desktop-apps-symbolic"),
     ("keyboard", "Keyboard & mouse", "input-keyboard-symbolic"),
     ("shortcuts", "Keyboard shortcuts", "preferences-desktop-keyboard-shortcuts-symbolic"),
@@ -42,6 +43,7 @@ PAGES = [
     ("datetime", "Date & time", "preferences-system-time-symbolic"),
     ("apps", "Apps", "application-x-addon-symbolic"),
     ("users", "Users", "system-users-symbolic"),
+    ("face", "Face unlock", "camera-web-symbolic"),
     ("about", "About", "help-about-symbolic"),
 ]
 
@@ -123,6 +125,39 @@ def combo_row(title, subtitle, options, selected, on_change):
         row.set_selected(values.index(selected))
     row.connect("notify::selected", lambda r, _p: on_change(values[r.get_selected()]))
     return row
+
+
+def cursor_themes() -> list[tuple[str, Path]]:
+    """Installed pointer themes: (name, folder)."""
+    found = {}
+    for base in (Path.home() / ".local/share/icons", Path.home() / ".icons", Path("/usr/share/icons")):
+        if base.is_dir():
+            for d in sorted(base.iterdir()):
+                if (d / "cursors").is_dir() and d.name not in found and d.name != "default":
+                    found[d.name] = d
+    return sorted(found.items(), key=lambda kv: (kv[0] != "Adwaita", kv[0].lower()))
+
+
+def cursor_preview(folder: Path) -> str | None:
+    """A PNG of the theme's arrow, made once with xcur2png if it's installed (else None)."""
+    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "jace-os" / "cursors"
+    out = cache / f"{folder.name}.png"
+    if out.exists():
+        return str(out)
+    src = folder / "cursors" / "left_ptr"
+    if not src.exists() or not which("xcur2png"):
+        return None
+    cache.mkdir(parents=True, exist_ok=True)
+    tmp = cache / f".{folder.name}"
+    tmp.mkdir(exist_ok=True)
+    subprocess.run(["xcur2png", "-q", "-d", str(tmp), "-c", "-", str(src)], capture_output=True, timeout=10)
+    pngs = sorted(tmp.glob("*.png"), key=lambda p: p.stat().st_size)
+    if pngs:
+        pngs[-1].replace(out)
+    for leftover in tmp.glob("*"):
+        leftover.unlink(missing_ok=True)
+    tmp.rmdir()
+    return str(out) if out.exists() else None
 
 
 def gsettings_get(schema, key) -> str:
@@ -1026,6 +1061,24 @@ class SettingsWindow(Adw.ApplicationWindow):
             hg.add(plain_row(title="No hidden apps"))
         page.add(hg)
 
+        eg = Adw.PreferencesGroup(title="Edit the menu",
+                                  description="Add your own apps and websites, or rename any app, change its icon "
+                                              "or what it runs. Right-click an app in the start menu for Edit too.")
+        newb = Gtk.Button(label="Add an app or website", css_classes=["suggested-action", "pill"],
+                          halign=Gtk.Align.START, margin_bottom=8)
+        newb.connect("clicked", lambda *_: self._edit_app(None))
+        eg.add(newb)
+        eg.add(button_row("Edit an app", "Pick any app to rename it or change its icon", "Choose…",
+                          lambda: self._pick_any_app(self._edit_app)))
+        for f in sorted(menu_edits.user_entries()):
+            info = menu_edits.read(f)
+            row = plain_row(title=info.get("Name", f.stem), subtitle="Yours" if menu_edits.is_custom(f) else "Edited")
+            b = Gtk.Button(label="Edit", valign=Gtk.Align.CENTER)
+            b.connect("clicked", lambda _b, i=f.name: self._edit_app(i))
+            row.add_suffix(b)
+            eg.add(row)
+        page.add(eg)
+
         page.add(group("", None, button_row("Reset the start menu", "Back to the Jace OS layout and pinned apps",
                                             "Reset", lambda: (start_menu.save_config(dict(start_menu.DEFAULTS)),
                                                               self.reload()))))
@@ -1064,6 +1117,91 @@ class SettingsWindow(Adw.ApplicationWindow):
         view.set_content(box)
         dialog.set_child(view)
         dialog.present(self)
+
+    def _pick_any_app(self, then):
+        dialog = Adw.Dialog(title="Choose an app", content_width=420, content_height=560)
+        view = Adw.ToolbarView()
+        view.add_top_bar(Adw.HeaderBar())
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_start=12, margin_end=12,
+                      margin_bottom=12)
+        search = Gtk.SearchEntry(placeholder_text="Search apps")
+        lb = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+        for app in start_menu.all_apps():
+            row = plain_row(title=app.get_display_name(), activatable=True)
+            if app.get_icon():
+                img = Gtk.Image.new_from_gicon(app.get_icon())
+                img.set_pixel_size(28)
+                row.add_prefix(img)
+            row.connect("activated", lambda _r, a=app.get_id(): (dialog.close(), then(a)))
+            lb.append(row)
+        lb.set_filter_func(lambda r: search.get_text().lower() in r.get_title().lower())
+        search.connect("search-changed", lambda *_: lb.invalidate_filter())
+        box.append(search)
+        box.append(Gtk.ScrolledWindow(child=lb, vexpand=True))
+        view.set_content(box)
+        dialog.set_child(view)
+        dialog.present(self)
+
+    def _edit_app(self, app_id):
+        """Edit an app's menu entry (app_id), or add a new one (None)."""
+        info = menu_edits.load(app_id) if app_id else {"Name": "", "Exec": "", "Icon": "", "NoDisplay": "false"}
+        lb = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+        name = Adw.EntryRow(title="Name", text=info.get("Name", ""))
+        run_what = Adw.EntryRow(title="Command, or a website address (https://…)",
+                                text=menu_edits.shown_exec(info.get("Exec", "")))
+        icon = Adw.EntryRow(title="Icon (a name like web-browser, or a picture file)", text=info.get("Icon", ""))
+        pick = Gtk.Button(icon_name="document-open-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                          tooltip_text="Choose a picture")
+
+        def chosen(d, res):
+            try:
+                icon.set_text(d.open_finish(res).get_path())
+            except GLib.Error:
+                pass
+        pick.connect("clicked", lambda *_: Gtk.FileDialog(title="Choose an icon").open(self, None, chosen))
+        icon.add_suffix(pick)
+        hidden = Adw.SwitchRow(title="Hide from the start menu", active=info.get("NoDisplay", "false") == "true")
+        for r in (name, run_what, icon):
+            lb.append(r)
+        if app_id:
+            lb.append(hidden)
+        pin = Adw.SwitchRow(title="Pin to Start", active=app_id is None)
+        if not app_id:
+            lb.append(pin)
+
+        d = Adw.AlertDialog(heading="Edit app" if app_id else "Add an app or website")
+        d.set_extra_child(lb)
+        d.add_response("cancel", "Cancel")
+        if app_id and menu_edits.has_override(app_id):
+            d.add_response("reset", "Remove my changes" if not menu_edits.is_custom_id(app_id) else "Delete")
+            d.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.add_response("save", "Save")
+        d.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+
+        def respond(_d, r):
+            if r == "save":
+                if not name.get_text().strip() or not run_what.get_text().strip():
+                    self.toast("An app needs a name and something to run")
+                    return
+                new_id = menu_edits.save(app_id, name.get_text().strip(), run_what.get_text().strip(),
+                                         icon.get_text().strip(), hidden.get_active())
+                if not app_id and pin.get_active():
+                    cfg = start_menu.load_config()
+                    if new_id not in cfg["pinned"]:
+                        cfg["pinned"].append(new_id)
+                    start_menu.save_config(cfg)
+                self.toast("Saved")
+            elif r == "reset":
+                menu_edits.reset(app_id)
+                self.toast("Back to how it was")
+            else:
+                return
+            start_menu.save_config(start_menu.load_config())     # tells the start menu to refresh
+            if getattr(self, "current", "") == "menu":
+                self.reload()
+
+        d.connect("response", respond)
+        d.present(self)
 
     # --- Windows & desktops ------------------------------------------------------------------------
 
@@ -1202,18 +1340,35 @@ class SettingsWindow(Adw.ApplicationWindow):
 
         lc = LabwcConfig()
 
-        def touch(key, default):
-            return lc.get(f"libinput/device[@category='touchpad']/{key}", default) == "yes"
+        def dev_get(category, key, default):
+            return lc.get(f"libinput/device[@category='{category}']/{key}", default)
 
-        def set_touch(key, on):
-            dev = next((d for d in lc.node("libinput").findall("device") if d.get("category") == "touchpad"), None)
+        def dev_set(category, key, value):
+            dev = next((d for d in lc.node("libinput").findall("device") if d.get("category") == category), None)
             if dev is None:
-                dev = ET.SubElement(lc.node("libinput"), "device", category="touchpad")
+                dev = ET.SubElement(lc.node("libinput"), "device", category=category)
             node = dev.find(key)
             if node is None:
                 node = ET.SubElement(dev, key)
-            node.text = "yes" if on else "no"
+            node.text = value
             lc.save()
+
+        def touch(key, default):
+            return dev_get("touchpad", key, default) == "yes"
+
+        def set_touch(key, on):
+            dev_set("touchpad", key, "yes" if on else "no")
+
+        clip = Adw.PreferencesGroup(title="Clipboard", description="Win+V shows everything you copied.")
+        clip.add(switch_row("Clipboard history", "Keep what you copy, so you can paste it again later",
+                            clipboard.history_on(), clipboard.set_history))
+        clip.add(switch_row("Paste right away", "Picking something in Win+V pastes it, not just copies it",
+                            not (config_dir() / "clipboard-no-autopaste").exists(),
+                            lambda on: (config_dir() / "clipboard-no-autopaste").unlink(missing_ok=True) if on
+                            else (config_dir() / "clipboard-no-autopaste").touch()))
+        clip.add(button_row("Clear clipboard history", "Pinned items stay", "Clear",
+                            lambda: (clipboard.clear(), self.toast("Clipboard history cleared"))))
+        page.add(clip)
 
         tg = Adw.PreferencesGroup(title="Touchpad")
         tg.add(switch_row("Tap to click", None, touch("tap", "yes"), lambda on: set_touch("tap", on)))
@@ -1221,12 +1376,90 @@ class SettingsWindow(Adw.ApplicationWindow):
                           lambda on: set_touch("naturalScroll", on)))
         tg.add(switch_row("Turn off while typing", None, touch("disableWhileTyping", "yes"),
                           lambda on: set_touch("disableWhileTyping", on)))
+        tg.add(self._slider_row("Touchpad speed", float(dev_get("touchpad", "pointerSpeed", "0")),
+                                lambda v: dev_set("touchpad", "pointerSpeed", f"{v:.2f}")))
         page.add(tg)
-        cursor = gsettings_get("org.gnome.desktop.interface", "cursor-size") or "24"
-        page.add(group("Mouse", None,
-                       combo_row("Pointer size", None, [("24", "Normal"), ("32", "Large"), ("48", "Larger")], cursor,
-                                 lambda v: gsettings_set("org.gnome.desktop.interface", "cursor-size", v))))
+
+        # Mice (labwc's "non-touch" devices): speed, acceleration, buttons, scrolling.
+        mg = Adw.PreferencesGroup(title="Mouse")
+        mg.add(self._slider_row("Pointer speed", float(dev_get("non-touch", "pointerSpeed", "0")),
+                                lambda v: dev_set("non-touch", "pointerSpeed", f"{v:.2f}")))
+        mg.add(combo_row("Acceleration", "Flat moves the pointer exactly as far as the mouse, good for games",
+                         [("adaptive", "Adaptive (faster when you move quickly)"), ("flat", "Flat")],
+                         dev_get("non-touch", "accelProfile", "adaptive"),
+                         lambda v: dev_set("non-touch", "accelProfile", v)))
+        mg.add(switch_row("Left-handed", "Swap the left and right buttons", dev_get("non-touch", "leftHanded", "no") == "yes",
+                          lambda on: dev_set("non-touch", "leftHanded", "yes" if on else "no")))
+        mg.add(switch_row("Natural scrolling", "Scroll the mouse wheel like a phone",
+                          dev_get("non-touch", "naturalScroll", "no") == "yes",
+                          lambda on: dev_set("non-touch", "naturalScroll", "yes" if on else "no")))
+        mg.add(combo_row("Scroll speed", None, [("0.5", "Slow"), ("1.0", "Normal"), ("1.5", "Fast"), ("2.0", "Faster")],
+                         dev_get("non-touch", "scrollFactor", "1.0"),
+                         lambda v: dev_set("non-touch", "scrollFactor", v)))
+        page.add(mg)
+
+        # The pointer itself: theme and size, for apps (gsettings) and labwc (XCURSOR_*).
+        cg = Adw.PreferencesGroup(title="Pointer", description="Changes show everywhere after you sign out and back in.")
+        theme = gsettings_get("org.gnome.desktop.interface", "cursor-theme") or "Adwaita"
+        size = gsettings_get("org.gnome.desktop.interface", "cursor-size") or "24"
+
+        def set_cursor(new_theme=None, new_size=None):
+            if new_theme:
+                gsettings_set("org.gnome.desktop.interface", "cursor-theme", new_theme)
+                values["XCURSOR_THEME"] = new_theme
+            if new_size:
+                gsettings_set("org.gnome.desktop.interface", "cursor-size", new_size)
+                values["XCURSOR_SIZE"] = new_size
+            LABWC_USER.mkdir(parents=True, exist_ok=True)
+            env.write_text("# Written by Jace OS Settings (Keyboard & mouse).\n" +
+                           "".join(f"{k}={v}\n" for k, v in values.items() if v))
+            labwc_reload()
+            self.toast("Pointer changed")
+
+        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=4, min_children_per_line=2,
+                           column_spacing=10, row_spacing=10, homogeneous=True, margin_bottom=6)
+        for name, folder in cursor_themes():
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=10, margin_bottom=10)
+            preview = cursor_preview(folder)
+            if preview:
+                pic = Gtk.Picture.new_for_filename(preview)
+                pic.set_size_request(40, 40)
+                pic.set_content_fit(Gtk.ContentFit.CONTAIN)
+                box.append(pic)
+            else:
+                box.append(Gtk.Image(icon_name="input-mouse-symbolic", pixel_size=32))
+            box.append(Gtk.Label(label=name.replace("-", " "), ellipsize=Pango.EllipsizeMode.END, max_width_chars=14))
+            b = Gtk.Button(child=box, css_classes=["jw-thumb"] + (["jw-current"] if name == theme else []),
+                           tooltip_text=name)
+            b.connect("clicked", lambda _b, n=name: (set_cursor(new_theme=n), self.reload()))
+            flow.append(b)
+        cg.add(flow)
+        cg.add(combo_row("Pointer size", None, [("24", "Normal"), ("32", "Large"), ("40", "Larger"), ("48", "Largest")],
+                         size, lambda v: set_cursor(new_size=v)))
+        cg.add(link_row("Get more pointers", "Search Jace Store, Flathub and the AUR for cursor themes",
+                        ["jace-settings", "--page", "apps"], "system-search-symbolic"))
+        page.add(cg)
         return page
+
+    @staticmethod
+    def _slider_row(title, value, on_change):
+        """A -1…1 speed slider (libinput's pointerSpeed); saves when you let go."""
+        row = Adw.ActionRow(title=title)
+        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, -1, 1, 0.05)
+        scale.set_value(max(-1.0, min(1.0, value)))
+        scale.set_size_request(240, -1)
+        scale.add_mark(0, Gtk.PositionType.BOTTOM, None)
+        row.add_prefix(Gtk.Label(label="Slow", css_classes=["dim-label", "caption"]))
+        row.add_suffix(scale)
+        row.add_suffix(Gtk.Label(label="Fast", css_classes=["dim-label", "caption"]))
+        pending = {"id": 0}
+
+        def changed(s):
+            if pending["id"]:
+                GLib.source_remove(pending["id"])
+            pending["id"] = GLib.timeout_add(400, lambda: (pending.update(id=0), on_change(s.get_value()), False)[2])
+        scale.connect("value-changed", changed)
+        return row
 
     # --- Keyboard shortcuts ---------------------------------------------------------------------------
 
@@ -1376,6 +1609,121 @@ class SettingsWindow(Adw.ApplicationWindow):
         d.connect("response", respond)
         d.present(self)
 
+    # --- Top bar -------------------------------------------------------------------------------------
+
+    def page_bar(self):
+        page = Adw.PreferencesPage()
+        cfg = bar.load()
+
+        def change(fn):
+            def apply(*args):
+                fn(*args)
+                bar.save(cfg)
+            return apply
+
+        look = Adw.PreferencesGroup(title="Bar")
+        look.add(combo_row("Position", None, [("top", "Top of the screen"), ("bottom", "Bottom of the screen")],
+                           cfg["position"], change(lambda v: cfg.__setitem__("position", v))))
+        look.add(combo_row("Size", None, [("compact", "Compact"), ("normal", "Normal"), ("large", "Large")],
+                           cfg["size"], change(lambda v: cfg.__setitem__("size", v))))
+        page.add(look)
+
+        cg = Adw.PreferencesGroup(title="Clock", description="Click the clock for the calendar (or press Win+N).")
+        cg.add(switch_row("24-hour time", "Off shows 2:30 PM instead of 14:30", cfg["clock"]["24h"],
+                          change(lambda on: self._set_24h(cfg, on))))
+        cg.add(switch_row("Show seconds", None, cfg["clock"]["seconds"],
+                          change(lambda on: cfg["clock"].__setitem__("seconds", on))))
+        cg.add(switch_row("Show the date", None, cfg["clock"]["date"],
+                          change(lambda on: cfg["clock"].__setitem__("date", on))))
+        page.add(cg)
+
+        for zone, title in (("left", "Left side"), ("center", "Middle"), ("right", "Right side")):
+            g = Adw.PreferencesGroup(title=title)
+            for mid, (name, about, z, _default) in bar.MODULES.items():
+                if z != zone or mid == "clock":
+                    continue
+                g.add(switch_row(name, about, cfg["modules"].get(mid, False),
+                                 change(lambda on, m=mid: cfg["modules"].__setitem__(m, on))))
+            page.add(g)
+        page.add(group("", None, button_row("Reset the top bar", "Back to the Jace OS layout", "Reset",
+                                            lambda: (bar.save(json.loads(json.dumps(bar.DEFAULTS))), self.reload()))))
+        return page
+
+    @staticmethod
+    def _set_24h(cfg, on):
+        cfg["clock"]["24h"] = on
+        # GNOME apps (Calendar, Files, …) use the same choice.
+        gsettings_set("org.gnome.desktop.interface", "clock-format", "'24h'" if on else "'12h'")
+
+    # --- Face unlock -----------------------------------------------------------------------------------
+
+    def page_face(self):
+        page = Adw.PreferencesPage()
+        installed = which("howdy")
+        cams = sorted(Path("/dev").glob("video*"))
+        page.add(status_header("camera-web-symbolic", "Face unlock",
+                               "Sign in and unlock by looking at your camera, like Windows Hello. Your password "
+                               "always works too.", fallback="avatar-default-symbolic"))
+        warn = Adw.PreferencesGroup()
+        warn.add(plain_row(title="Best with an infrared (Windows Hello) camera",
+                           subtitle="A normal webcam can be fooled by a photo of you. Use it for convenience, "
+                                    "not for keeping a computer safe from people who know you."))
+        page.add(warn)
+
+        if not installed:
+            g = Adw.PreferencesGroup(title="Set up")
+            if not cams:
+                g.add(plain_row(title="No camera found", subtitle="Plug one in, then come back here"))
+            g.add(button_row("Install face unlock", "Installs Howdy from the AUR with yay. It builds face recognition "
+                             "on this computer, which can take 20 minutes or more.", "Install",
+                             lambda: spawn(["jace-terminal", "--", "sh", "-c",
+                                            "yay -S --needed howdy-git; echo; echo Done. Close this window "
+                                            "and open Settings → Face unlock again.; read -r _"]),
+                             suggested=True))
+            page.add(g)
+            return page
+
+        cg = Adw.PreferencesGroup(title="Camera")
+        if cams:
+            current = ""
+            for conf in ("/etc/howdy/config.ini", "/usr/lib/security/howdy/config.ini"):
+                try:
+                    current = next((ln.split("=", 1)[1].strip() for ln in Path(conf).read_text().splitlines()
+                                    if ln.strip().startswith("device_path")), "")
+                    break
+                except OSError:
+                    continue
+            opts = []
+            for c in cams:
+                name = Path(f"/sys/class/video4linux/{c.name}/name")
+                label = name.read_text().strip() if name.exists() else c.name
+                opts.append((str(c), f"{label} ({c.name})" + ("  · infrared" if "ir" in label.lower() else "")))
+            cg.add(combo_row("Camera", "Laptops often have two: pick the infrared one if there is one", opts, current,
+                             lambda v: background(lambda: subprocess.run(["pkexec", "/usr/bin/jace-face", "camera", v]),
+                                                  lambda _r: self.toast("Camera set"))))
+        cg.add(button_row("Add your face", "Look at the camera for a few seconds. Add it again with glasses, "
+                          "in different light, and so on", "Add",
+                          lambda: spawn(["jace-terminal", "--", "sh", "-c",
+                                         "sudo howdy add; echo; echo Close this window when you're done.; read -r _"]),
+                          suggested=True))
+        cg.add(link_row("Test it", "Shows what the camera sees and whether it recognises you",
+                        ["jace-terminal", "--", "sudo", "howdy", "test"], "media-playback-start-symbolic"))
+        page.add(cg)
+
+        status = dict(ln.split() for ln in run(["jace-face", "status"]).splitlines() if len(ln.split()) == 2)
+        ug = Adw.PreferencesGroup(title="Use face unlock for")
+        for sid, title, about in (("lock", "The lock screen", "Press Enter on the lock screen, then look at the camera"),
+                                  ("login", "Signing in", "On the login screen when the computer starts"),
+                                  ("admin", "Admin prompts", "When an app asks for your password to change something"),
+                                  ("sudo", "sudo in a terminal", None)):
+            ug.add(switch_row(title, about, status.get(sid) == "on",
+                              lambda on, s=sid: background(
+                                  lambda: subprocess.run(["pkexec", "/usr/bin/jace-face",
+                                                          "enable" if on else "disable", s]).returncode,
+                                  lambda r: self.toast("Saved" if r == 0 else "That didn't work"))))
+        page.add(ug)
+        return page
+
     # --- Power -------------------------------------------------------------------------------------
 
     def page_power(self):
@@ -1438,6 +1786,11 @@ class SettingsWindow(Adw.ApplicationWindow):
                         lambda v: (subprocess.run(["timedatectl", "set-timezone", v]), self.toast(f"Time zone: {v}")))
         row.set_enable_search(True)
         g.add(row)
+        cfg = bar.load()
+        g.add(switch_row("24-hour time", "Off shows 2:30 PM instead of 14:30", cfg["clock"]["24h"],
+                         lambda on: (self._set_24h(cfg, on), bar.save(cfg))))
+        g.add(link_row("Clock and calendar on the top bar", None, ["jace-settings", "--page", "bar"],
+                       "x-office-calendar-symbolic"))
         page.add(g)
         return page
 
@@ -1753,6 +2106,9 @@ class SettingsApp(Adw.Application):
         elif page:
             win.open_page(page)
         win.present()
+        if "--edit" in args and args.index("--edit") + 1 < len(args):
+            win.open_page("menu")
+            win._edit_app(args[args.index("--edit") + 1])
         return 0
 
 

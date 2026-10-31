@@ -1,0 +1,12 @@
+#!/bin/sh
+# Starts one of Jace OS's pop-ups (start menu, clipboard, calendar): run-popup <module> [args].
+# gtk4-layer-shell has to load before Wayland does, so it's preloaded here; the pop-up
+# removes it from its environment again before starting any app (jaceos/popup.py).
+module=$1; shift
+for lib in /usr/lib/libgtk4-layer-shell.so /usr/lib/libgtk4-layer-shell.so.*; do
+  [ -e "$lib" ] && export LD_PRELOAD="$lib${LD_PRELOAD:+:$LD_PRELOAD}" && break
+done
+exec /usr/bin/python3 -c '
+import os, sys, importlib
+sys.path.insert(0, os.path.join(os.environ.get("JACE_OS_ROOT", "/"), "usr/lib/jace-os"))
+importlib.import_module("jaceos." + sys.argv[1]).main()' "$module" "$@"

@@ -21,3 +21,11 @@ default-timeout=0
 
 [app-name="Jace OS Updates"]
 border-color=#3ddc84
+
+# Do not disturb (jace-dnd, or the bell on the top bar): nothing pops up, except
+# critical notifications like a found virus.
+[mode=do-not-disturb]
+invisible=1
+
+[mode=do-not-disturb urgency=critical]
+invisible=0

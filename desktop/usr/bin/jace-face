@@ -1,0 +1,59 @@
+#!/bin/bash
+# Face unlock (Howdy) for Jace OS. Runs as root, through pkexec from Settings → Face unlock.
+#
+#   jace-face status                 which services use face unlock (no root needed)
+#   jace-face camera </dev/videoN>   the camera Howdy uses
+#   jace-face enable <service>       let that sign-in use your face: lock, login, sudo, admin
+#   jace-face disable <service>
+#
+# Enabling adds "auth sufficient pam_howdy.so" as the first line of the service's PAM file,
+# so your face is tried first and your password still works if it doesn't recognise you.
+set -euo pipefail
+LINE='auth sufficient pam_howdy.so'
+MARK='# Jace OS face unlock (Settings → Face unlock)'
+
+pam_file() {
+  case "$1" in
+    lock) echo /etc/pam.d/swaylock ;;
+    login) echo /etc/pam.d/greetd ;;
+    sudo) echo /etc/pam.d/sudo ;;
+    admin) echo /etc/pam.d/polkit-1 ;;
+    *) echo "Unknown: $1 (lock, login, sudo or admin)" >&2; exit 2 ;;
+  esac
+}
+
+config() {
+  for c in /etc/howdy/config.ini /usr/lib/security/howdy/config.ini /lib/security/howdy/config.ini; do
+    [ -f "$c" ] && { echo "$c"; return; }
+  done
+  return 1
+}
+
+if [ "${1:-}" = status ]; then
+  for s in lock login sudo admin; do
+    f=$(pam_file "$s")
+    grep -q '^auth sufficient pam_howdy.so' "$f" 2>/dev/null && echo "$s on" || echo "$s off"
+  done
+  exit 0
+fi
+
+[ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
+
+case "${1:-}" in
+  camera)
+    dev=${2:?a camera like /dev/video0}
+    [[ "$dev" =~ ^/dev/video[0-9]+$ ]] && [ -e "$dev" ] || { echo "No camera at $dev" >&2; exit 1; }
+    c=$(config) || { echo "Howdy isn't installed." >&2; exit 1; }
+    sed -i "s|^device_path *=.*|device_path = $dev|" "$c" ;;
+  enable)
+    f=$(pam_file "${2:?service}")
+    [ -f "$f" ] || { echo "$f doesn't exist." >&2; exit 1; }
+    compgen -G '/usr/lib/security/pam_howdy.so' >/dev/null || compgen -G '/lib/security/pam_howdy.so' >/dev/null ||
+      { echo "Howdy isn't installed." >&2; exit 1; }
+    grep -q '^auth sufficient pam_howdy.so' "$f" || sed -i "1a $MARK\n$LINE" "$f" ;;
+  disable)
+    f=$(pam_file "${2:?service}")
+    sed -i -e "\|^$MARK\$|d" -e '\|^auth sufficient pam_howdy.so$|d' "$f" ;;
+  *)
+    sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

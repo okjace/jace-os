@@ -129,6 +129,8 @@
     <keybind key="W-l"><action name="Execute" command="jace-lock" /></keybind>
     <keybind key="W-x"><action name="Execute" command="jace-power" /></keybind>
     <keybind key="W-period"><action name="Execute" command="gnome-characters" /></keybind>
+    <keybind key="W-v"><action name="Execute" command="jace-clipboard" /></keybind>
+    <keybind key="W-n"><action name="Execute" command="jace-calendar" /></keybind>
 
     <!-- Screenshots: Print = whole screen, Win+Shift+S = pick an area (Snipping Tool). -->
     <keybind key="Print"><action name="Execute" command="jace-screenshot screen" /></keybind>

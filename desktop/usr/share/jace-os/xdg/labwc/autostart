@@ -6,13 +6,18 @@
 dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP >/dev/null 2>&1
 systemctl --user start xdg-desktop-portal.service >/dev/null 2>&1 &
 
+# Desktop, Documents, Downloads, Music, Pictures, Videos… in your home folder (only makes missing ones).
+xdg-user-dirs-update >/dev/null 2>&1
+
 jace-wallpaper restore >/dev/null 2>&1 &
-waybar -c "$(jace-config-path waybar/config.jsonc)" -s "$(jace-config-path waybar/style.css)" >/dev/null 2>&1 &
+# The top bar, built from Settings → Top bar.
+jace-bar >/dev/null 2>&1 &
 mako --config "$(jace-config-path mako/config)" >/dev/null 2>&1 &
 /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 >/dev/null 2>&1 &
 nm-applet --indicator >/dev/null 2>&1 &
 blueman-applet >/dev/null 2>&1 &
-wl-paste --watch cliphist store >/dev/null 2>&1 &
+# Clipboard history for Win+V (unless turned off in Settings → Keyboard & mouse).
+[ -e "${XDG_CONFIG_HOME:-$HOME/.config}/jace-os/clipboard-off" ] || wl-paste --watch cliphist store >/dev/null 2>&1 &
 jace-idle >/dev/null 2>&1 &
 jace-menu --daemon >/dev/null 2>&1 &
 # The apps that come with Jace OS, as custom apps in Jace Store's My apps (once each).

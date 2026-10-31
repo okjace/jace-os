@@ -1,0 +1,18 @@
+#!/bin/sh
+# Do not disturb: hides notifications (mako's "do-not-disturb" mode) until turned off.
+#   jace-dnd --toggle | --on | --off | --waybar
+on() { makoctl mode 2>/dev/null | grep -qx do-not-disturb; }
+case "${1:---waybar}" in
+  --toggle) if on; then makoctl mode -r do-not-disturb; else makoctl mode -a do-not-disturb; fi ;;
+  --on) makoctl mode -a do-not-disturb ;;
+  --off) makoctl mode -r do-not-disturb ;;
+  --waybar)
+    if on; then
+      printf '{"text":"󰂛","tooltip":"Do not disturb is on: click to show notifications again","class":"on"}\n'
+    else
+      printf '{"text":"󰂚","tooltip":"Notifications are on: click for do not disturb","class":"off"}\n'
+    fi
+    exit 0 ;;
+esac >/dev/null 2>&1
+pkill -RTMIN+10 -x waybar 2>/dev/null
+exit 0

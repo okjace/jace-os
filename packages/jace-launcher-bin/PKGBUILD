@@ -6,11 +6,13 @@ pkgname=jace-launcher-bin
 _cmd=jace-launcher
 _name="Jace Launcher"
 _repo=okjace/jace-launcher
+# The Wayland app id the app reports, so the top bar shows its own icon.
+_appid=io.github.jacelauncher.JaceLauncher
 _mime=""
 _stem=JaceLauncher
 pkgver=1.11.1
 _tag=v${pkgver}
-pkgrel=1
+pkgrel=2
 pkgdesc="Minecraft: Java Edition launcher with mod loaders, Modrinth, CurseForge and Jace Store"
 arch=(x86_64)
 url="https://github.com/${_repo}"
@@ -51,9 +53,12 @@ WRAPPER
   desktop=$(find squashfs-root -maxdepth 1 -name '*.desktop' | head -n1)
   icon=$(readlink -f squashfs-root/.DirIcon)
   install -Dm644 "$icon" "$pkgdir/usr/share/icons/hicolor/256x256/apps/$_cmd.png"
+  install -Dm644 "$icon" "$pkgdir/usr/share/icons/hicolor/256x256/apps/$_appid.png"
   install -d "$pkgdir/usr/share/applications"
   sed -e "s|^Exec=.*|Exec=$_cmd %U|" -e "s|^Icon=.*|Icon=$_cmd|" -e '/^X-AppImage/d' \
     "$desktop" > "$pkgdir/usr/share/applications/$_cmd.desktop"
+  sed -i '/^StartupWMClass=/d' "$pkgdir/usr/share/applications/$_cmd.desktop"
+  echo "StartupWMClass=$_appid" >> "$pkgdir/usr/share/applications/$_cmd.desktop"
   if [ -n "$_mime" ] && ! grep -q '^MimeType=' "$pkgdir/usr/share/applications/$_cmd.desktop"; then
     echo "MimeType=$_mime" >> "$pkgdir/usr/share/applications/$_cmd.desktop"
   fi

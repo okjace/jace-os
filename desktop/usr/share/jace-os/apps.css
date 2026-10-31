@@ -8,6 +8,7 @@
 .jm-window, .jm-backdrop { background: transparent; }
 
 .jm-panel {
+  background-color: rgba(22, 24, 29, 0.96);   /* the start menu sets its own see-through level */
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 18px 18px 10px 18px;
@@ -51,3 +52,14 @@
 
 /* --- welcome --- */
 .jw-app { padding: 16px; border-radius: 16px; min-width: 120px; }
+
+/* --- clipboard (Win+V) --- */
+.jc-list { background: transparent; }
+.jc-row { border-radius: 12px; margin: 2px 0; }
+.jc-row:hover, .jc-row:selected { background: rgba(255, 255, 255, 0.07); }
+.jc-pinned { color: #3ddc84; }
+
+/* --- calendar (click the clock) --- */
+.jcal-time { font-size: 2em; font-weight: 800; }
+.jcal-calendar { background: transparent; border: none; }
+.jcal-calendar > grid > label.today { background: #3ddc84; color: #0c1410; border-radius: 999px; }

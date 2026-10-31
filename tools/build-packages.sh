@@ -28,8 +28,11 @@ for r in json.load(sys.stdin):
         print(r["tag_name"]); break' "${2:-}"
 }
 
-set_version() { # pkgdir version
-  sed -i -e "s/^pkgver=.*/pkgver=$2/" -e "s/^pkgrel=.*/pkgrel=1/" "packages/$1/PKGBUILD"
+set_version() { # pkgdir version: a new version starts again at pkgrel 1; the same version keeps its pkgrel
+  local f="packages/$1/PKGBUILD"
+  if ! grep -qx "pkgver=$2" "$f"; then
+    sed -i -e "s/^pkgver=.*/pkgver=$2/" -e "s/^pkgrel=.*/pkgrel=1/" "$f"
+  fi
 }
 
 update_versions() {

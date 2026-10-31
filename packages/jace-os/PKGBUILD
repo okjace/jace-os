@@ -32,7 +32,9 @@ depends=(
   # Everyday apps (modern GNOME apps: GTK 4 + libadwaita)
   nautilus nautilus-python sushi file-roller gvfs gvfs-mtp ptyxis
   gnome-text-editor loupe gnome-calculator gnome-system-monitor gnome-disk-utility baobab
-  showtime decibels papers gnome-characters
+  showtime decibels papers gnome-characters gnome-calendar
+  # Clipboard manager (Win+V pastes with wtype), pointer previews and themes
+  wtype xcur2png capitaine-cursors
   # Look
   adw-gtk-theme papirus-icon-theme adwaita-icon-theme inter-font ttf-jetbrains-mono ttf-nerd-fonts-symbols
   noto-fonts noto-fonts-emoji noto-fonts-cjk
