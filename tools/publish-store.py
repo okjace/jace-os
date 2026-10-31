@@ -52,20 +52,21 @@ def main():
 
     rel = release(tag)
     assets = sorted(rel.get("assets", []), key=lambda a: a["name"])
-    links = []
+    isos, sums = [], None
     for a in assets:
         name = a["name"]
         if name.endswith(".iso"):
-            links.append(f"{a['browser_download_url']}|Jace OS {version} (ISO)")
+            isos.append((a["browser_download_url"], f"Jace OS {version} (ISO)"))
         elif ".iso.part" in name:
-            links.append(f"{a['browser_download_url']}|ISO part {int(name.rsplit('part', 1)[1]) + 1}")
+            isos.append((a["browser_download_url"], f"ISO part {int(name.rsplit('part', 1)[1]) + 1} of "
+                                                    f"{sum('.iso.part' in x['name'] for x in assets)}"))
         elif name == "SHA256SUMS":
-            links.append(f"{a['browser_download_url']}|Checksums (SHA256SUMS)")
-    if not links:
-        sys.exit(f"{tag}: the GitHub release has no ISO")
-    print(f"{tag}: {len(links)} download(s)")
+            sums = a["browser_download_url"]
+    if not isos or not sums:
+        sys.exit(f"{tag}: the GitHub release needs the ISO and SHA256SUMS")
+    print(f"{tag}: {len(isos)} ISO download(s)")
     if dry:
-        print("  " + "\n  ".join(links))
+        print("  " + "\n  ".join(u for u, _l in isos))
         return
 
     urllib.request.urlretrieve(f"{SITE}/jace-store.mjs", CLI)
@@ -75,17 +76,26 @@ def main():
         cli("create", "--type", "app", "--slug", SLUG, "--title", "Jace OS", "--summary", SUMMARY,
             "--description-file", str(ROOT / "README.md"), "--source-url", f"https://github.com/{REPO}",
             "--issues-url", f"https://github.com/{REPO}/issues", "--license", "MIT")
-        project = {"versions": []}
-    if version in {v.get("version_number") for v in project.get("versions", [])}:
+        project = cli("project", SLUG)
+    existing = next((v for v in project.get("versions", []) if v.get("version_number") == version), None)
+    if existing and any(".iso" in (f.get("url") or f.get("filename") or "") for f in existing.get("files", [])):
         print(f"{tag}: already on Jace Store")
         return
-    cmd = ["publish", SLUG, "--version", version, "--name", f"Jace OS {version}", "--loaders", "linux",
-           "--changelog", f"{rel.get('html_url', '')}\n\n{rel.get('body', '')}"[:10000],
-           "--install-mode", "open"]
-    for link in links:
-        cmd += ["--link", link]
-    out = cli(*cmd)
-    print(f"  published: {out.get('page_url', SITE + '/project/' + SLUG)}")
+
+    # Jace Store downloads and hashes each linked file, which times out for a 2 GB ISO.
+    # So the version starts with the tiny SHA256SUMS link (hashed as usual), and the ISO
+    # links are added with --skip-hash: SHA256SUMS is what people check the ISO with.
+    if existing:
+        version_id = existing["id"]
+    else:
+        out = cli("publish", SLUG, "--version", version, "--name", f"Jace OS {version}", "--loaders", "linux",
+                  "--changelog", f"{rel.get('html_url', '')}\n\n{rel.get('body', '')}"[:10000],
+                  "--install-mode", "open", "--link", f"{sums}|Checksums (SHA256SUMS)")
+        version_id = out["id"]
+    for i, (url, label) in enumerate(isos):
+        cli("add-link", version_id, url, "--label", label, "--skip-hash", "--install-mode", "open",
+            "--platform", "linux", *(["--primary"] if i == 0 else []))
+    print(f"  published: {SITE}/project/{SLUG}")
 
 
 if __name__ == "__main__":

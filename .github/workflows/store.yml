@@ -1,0 +1,27 @@
+# Publishes an existing Jace OS GitHub release on Jace Store (the ISO workflow does this
+# after every release; run this by hand to retry or to publish an older one).
+name: Jace Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, like v2026.10.30"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    env:
+      JACE_STORE_TOKEN: ${{ secrets.JACE_STORE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Publish to Jace Store
+        run: python3 tools/publish-store.py "${{ inputs.tag }}"
