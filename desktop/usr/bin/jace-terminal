@@ -1,8 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 # Opens your terminal (Settings → Apps → Terminal; Ptyxis by default).
 #   jace-terminal                 a new terminal window
 #   jace-terminal -- cmd args...  run a command in a new terminal window
 #   jace-terminal --dir <folder>  start in that folder
+#
+# A command is written to a small script with every argument quoted (printf %q), and the
+# terminal runs that script. Some terminals (Ptyxis among them) turn their arguments back
+# into one line and let a shell split it again, which breaks commands containing quotes.
 conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os/terminal"
 term=ptyxis
 [ -r "$conf" ] && term=$(head -n1 "$conf")
@@ -22,12 +26,21 @@ if [ $# -eq 0 ]; then
     *) exec "$term" ;;
   esac
 fi
+
+run="${XDG_RUNTIME_DIR:-/tmp}/jace-terminal-$$.sh"
+{
+  echo '#!/bin/bash'
+  echo 'rm -f -- "$0"'
+  printf '%q ' "$@"
+  echo
+} > "$run"
+chmod 700 "$run"
+
 case "$term" in
-  ptyxis) exec ptyxis --new-window ${dir:+--working-directory="$dir"} -- "$@" ;;
-  kgx) exec kgx -- "$@" ;;
-  foot) exec foot -- "$@" ;;
-  kitty) exec kitty -- "$@" ;;
-  wezterm) exec wezterm start -- "$@" ;;
-  alacritty|konsole|ghostty|xterm) exec "$term" -e "$@" ;;
-  *) exec "$term" -e "$@" ;;
+  ptyxis) exec ptyxis --new-window ${dir:+--working-directory="$dir"} -- "$run" ;;
+  kgx) exec kgx -- "$run" ;;
+  foot) exec foot -- "$run" ;;
+  kitty) exec kitty -- "$run" ;;
+  wezterm) exec wezterm start -- "$run" ;;
+  *) exec "$term" -e "$run" ;;
 esac

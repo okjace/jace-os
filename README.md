@@ -21,7 +21,9 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **Face unlock**: Settings → Face unlock sets up Howdy, the Linux Windows Hello, for the lock screen, sign-in and password prompts. Best with an infrared camera.
 - **Automatic updates**: `jace-update.timer` installs Arch updates (the Linux kernel and security fixes), new Jace app and Zen Browser releases, and Flatpak updates every few hours while plugged in. You can see and install them yourself in Settings → Updates.
 - **The Jace apps**: Jace Launcher, Jace Social and Jace Store come preinstalled, along with Zen Browser as the default browser and [yay](https://github.com/Jguer/yay) for the AUR (Jace Store's AUR source uses it). The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
-- **Sign in with Jace**: the account page in Settings and the account button on the top bar sign in to [Jace](https://jaceo.vercel.app) (OAuth 2.0 with PKCE).
+- **Sign in with Jace**: the account page in Settings and the account button on the top bar sign in to [Jace](https://jaceo.vercel.app) (OAuth 2.0 with PKCE). Your Jace display name and photo become this computer's account name and picture (you can turn that off), and the top bar's corner shows your picture and name right away. Not signed in? It shows your account on this computer. Jace apps can ask Jace OS to sign them in too (`jace-account --token-for`).
+- **Users**: change your picture and name, add people, and delete accounts in Settings → Users.
+- **Restart reminders**: after an update that needs it, a notification and the top bar say whether to restart (Linux, drivers, system libraries) or just sign out (desktop parts).
 - **Boot splash and login screen**: a Plymouth theme with the Jace OS logo, and a greetd + ReGreet login screen.
 
 ## Keyboard shortcuts

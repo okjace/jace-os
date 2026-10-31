@@ -9,4 +9,8 @@ export XDG_SESSION_DESKTOP=jace-os
 export XDG_SESSION_TYPE=wayland
 
 # -m merges ~/.config/labwc over the Jace OS defaults, so Settings only writes what you change.
+# When this session started: an update that only needs a sign-out is done once you've
+# signed in after it (see jaceos/updates.py).
+[ -n "${XDG_RUNTIME_DIR:-}" ] && touch "$XDG_RUNTIME_DIR/jace-session-started"
+
 exec labwc -m "$@"

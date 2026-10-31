@@ -10,6 +10,11 @@ readable only by you.
   jace-account --waybar   print the top bar's account button (JSON)
   jace-account --signin   sign in from a terminal
   jace-account --signout
+  jace-account --avatar   print the round picture the top bar shows
+  jace-account --json     who's signed in, for Jace apps (no token): {"signed_in", "user"}
+  jace-account --token-for <client_id> [--scope "profile email"]
+                          a Jace token for another Jace app, so it can sign you in without
+                          asking (Jace exchanges this computer's token; official apps only)
 """
 import base64
 import configparser
@@ -81,7 +86,9 @@ def sign_out():
 
 
 def _refresh_bar():
-    os.system("pkill -RTMIN+9 waybar >/dev/null 2>&1")
+    """Your name and picture on the top bar update right away (both modules listen on signal 9)."""
+    import subprocess
+    subprocess.run(["pkill", "-RTMIN+9", "-x", "waybar"], capture_output=True)
 
 
 def _request(url: str, data: dict | None = None, token: str | None = None) -> dict:
@@ -195,6 +202,7 @@ def sign_in(open_url=webbrowser.open, timeout: float = 300) -> dict:
     }
     _save(account)
     _fetch_avatar(user.get("picture"))
+    _sync_profile(user)
     _refresh_bar()
     return account
 
@@ -214,6 +222,7 @@ def refresh_profile() -> dict | None:
     acct["user"] = user
     _save(acct)
     _fetch_avatar(user.get("picture"))
+    _sync_profile(user)
     _refresh_bar()
     return acct
 
@@ -236,6 +245,43 @@ def _fetch_avatar(url: str | None):
         pass
 
 
+def _sync_profile(user: dict):
+    """Your Jace display name and photo become this computer's account name and picture."""
+    try:
+        from jaceos import profile
+        profile.sync_from_jace(user, avatar_path())
+    except Exception:  # noqa: BLE001 - never let a sync problem break signing in
+        pass
+
+
+def corner_picture() -> str:
+    """The round picture for the top bar: your Jace photo, else your account picture, else initials."""
+    from jaceos import profile
+    acct = load()
+    if acct:
+        pic = avatar_path()
+        return profile.round_picture(str(pic) if pic else None, display_name(acct))
+    me = profile.local_user()
+    return profile.round_picture(me["picture"], me["name"])
+
+
+def exchange_token(client_id: str, scope: str = "profile email") -> dict:
+    """Asks Jace for a token for another Jace app, in exchange for this computer's token
+    (OAuth 2.0 Token Exchange, RFC 8693). Lets Jace apps sign you in without asking."""
+    acct = load()
+    if not acct:
+        raise AccountError("Not signed in to Jace on this computer.")
+    cfg = settings()
+    return _request(f"{cfg['url']}/api/oauth/token", {
+        "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+        "subject_token": acct["access_token"],
+        "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
+        "client_id": cfg["client_id"],
+        "audience": client_id,
+        "scope": scope,
+    })
+
+
 def display_name(acct: dict | None) -> str:
     if not acct:
         return ""
@@ -246,16 +292,34 @@ def display_name(acct: dict | None) -> str:
 def waybar() -> str:
     acct = load()
     if not acct:
-        return json.dumps({"text": "󰀄  Sign in", "tooltip": "Sign in with your Jace account", "class": "signed-out"})
+        # Not signed in to Jace: show your account on this computer, not "Sign in".
+        from jaceos import profile
+        me = profile.local_user()
+        return json.dumps({"text": me["name"], "class": "local",
+                           "tooltip": f"{me['name']} ({me['username']}) on this computer\n"
+                                      "Click to sign in with Jace for your Jace apps"})
     u = acct.get("user", {})
     tip = f"{display_name(acct)} (@{u.get('username', '')})\nJace account: click to manage"
-    return json.dumps({"text": f"󰀄  {display_name(acct)}", "tooltip": tip, "class": "signed-in"})
+    return json.dumps({"text": display_name(acct), "tooltip": tip, "class": "signed-in"})
 
 
 def main():
     args = sys.argv[1:]
     if "--waybar" in args:
         print(waybar())
+    elif "--avatar" in args:
+        print(corner_picture())
+    elif "--json" in args:
+        acct = load()
+        print(json.dumps({"signed_in": bool(acct), "user": (acct or {}).get("user")}))
+    elif "--token-for" in args:
+        i = args.index("--token-for")
+        scope = args[args.index("--scope") + 1] if "--scope" in args else "profile email"
+        try:
+            print(json.dumps(exchange_token(args[i + 1], scope)))
+        except (AccountError, IndexError) as e:
+            print(json.dumps({"error": str(e) or "usage: --token-for <client_id>"}))
+            sys.exit(1)
     elif "--signout" in args:
         sign_out()
         print("Signed out.")

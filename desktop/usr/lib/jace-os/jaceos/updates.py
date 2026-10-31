@@ -6,6 +6,7 @@ apps, Zen Browser and Flatpaks. Installing them is /usr/bin/jace-update (root).
   jace-updates --waybar   the top bar's updates button (JSON)
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,46 @@ from jaceos import JACE_APPS, ok, run, which
 
 STATE = Path("/var/lib/jace-os")
 REBOOT_FLAG = Path("/run/jace-os/reboot-required")
+RELOGIN_FLAG = Path("/run/jace-os/relogin-required")
+
+
+def finish_needed() -> str:
+    """ "restart", "signout" or "" after updates (jace-update writes the flags in /run)."""
+    if REBOOT_FLAG.exists():
+        return "restart"
+    if RELOGIN_FLAG.exists():
+        started = Path(os.environ.get("XDG_RUNTIME_DIR", "/run/user/%d" % os.getuid())) / "jace-session-started"
+        # Signed in again since the update? Then it's done.
+        if not started.exists() or started.stat().st_mtime < RELOGIN_FLAG.stat().st_mtime:
+            return "signout"
+    return ""
+
+
+def _notify_finish(kind: str):
+    """One notification per update that needs finishing, with a button to do it."""
+    flag = REBOOT_FLAG if kind == "restart" else RELOGIN_FLAG
+    stamp = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "jace-os" / "finish-notified"
+    key = f"{kind}:{int(flag.stat().st_mtime)}"
+    try:
+        if stamp.read_text() == key:
+            return
+    except OSError:
+        pass
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_text(key)
+    if kind == "restart":
+        title, body, button, action = ("Restart to finish updating",
+                                       "Linux or system parts were updated. They're used after a restart.",
+                                       "Restart now", "systemctl reboot")
+    else:
+        title, body, button, action = ("Sign out to finish updating",
+                                       "Parts of the desktop were updated. Sign out and back in to use them.",
+                                       "Sign out now", "labwc --exit")
+    # Detached, so the top bar isn't kept waiting for the button.
+    script = (f'[ "$(notify-send -a "Jace OS Updates" -u critical -i system-software-update '
+              f'-A now="{button}" -A later="Later" "{title}" "{body}")" = now ] && {action}')
+    subprocess.Popen(["sh", "-c", script], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 EXTRA_APPS = {"zen-browser-bin": "Zen Browser", "yay-bin": "yay"}
 
 
@@ -67,6 +108,7 @@ def check() -> dict:
         "security": [u["name"] for u in security],
         "flatpak": flatpak_updates(),
         "reboot_required": REBOOT_FLAG.exists(),
+        "finish": finish_needed(),
         "auto": auto_enabled(),
         "last_update": _read(STATE / "last-update"),
         "last_error": _read(STATE / "last-error"),
@@ -99,8 +141,14 @@ def set_auto(on: bool) -> bool:
 
 
 def waybar() -> str:
-    if REBOOT_FLAG.exists():
-        return json.dumps({"text": "󰜉", "tooltip": "Restart to finish installing updates", "class": "available"})
+    finish = finish_needed()
+    if finish:
+        _notify_finish(finish)
+        if finish == "restart":
+            return json.dumps({"text": "󰜉 Restart", "class": "available",
+                               "tooltip": "Restart to finish installing updates (click for details)"})
+        return json.dumps({"text": "󰍃 Sign out", "class": "available",
+                           "tooltip": "Sign out and back in to finish installing updates (click for details)"})
     n = count({"apps": [{"update": False}], "system": pacman_updates(), "flatpak": flatpak_updates()})
     if n == 0:
         return json.dumps({"text": "", "tooltip": "Everything is up to date", "class": "none"})

@@ -1,0 +1,13 @@
+#!/bin/bash
+# Runs a command in a terminal window, then waits so you can read what it said.
+#   jace-terminal -- /usr/lib/jace-os/then-wait <command> [args...]
+"$@"
+status=$?
+echo
+if [ $status -eq 0 ]; then
+  echo "Done. You can close this window (or press Enter)."
+else
+  echo "That didn't finish (exit code $status). You can close this window (or press Enter)."
+fi
+read -r _
+exit $status

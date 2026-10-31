@@ -39,7 +39,7 @@ MODULES = {
     "network": ("Wi-Fi and network", None, "right", True),
     "bluetooth": ("Bluetooth", None, "right", True),
     "battery": ("Battery", None, "right", True),
-    "account": ("Your Jace account", None, "right", True),
+    "account": ("Your account", "Your picture and name; click for your Jace account", "right", True),
     "power": ("Power button", "Lock, sign out, restart and shut down", "right", True),
 }
 ORDER = list(MODULES)
@@ -147,8 +147,8 @@ def waybar_config(cfg: dict) -> dict:
         "battery": ("battery", {"states": {"warning": 25, "critical": 10}, "format": "{icon} {capacity}%",
                                 "format-charging": "󰂄 {capacity}%", "format-icons": ["󰁺", "󰁼", "󰁾", "󰂀", "󰁹"],
                                 "on-click": "jace-settings --page power"}),
-        "account": ("custom/jace", {"exec": "jace-account --waybar", "return-type": "json", "interval": 300,
-                                    "signal": 9, "format": "{}", "on-click": "jace-settings --page account"}),
+        # Your picture and name, as one island (both refresh on signal 9 when you sign in or out).
+        "account": ("group/account", {"orientation": "horizontal", "modules": ["image#avatar", "custom/jace"]}),
         "power": ("custom/power", {"format": "⏻", "tooltip-format": "Lock, sleep, restart or shut down",
                                    "on-click": "jace-power"}),
     }
@@ -163,6 +163,11 @@ def waybar_config(cfg: dict) -> dict:
         name, conf = defs[mid]
         out[f"modules-{MODULES[mid][2]}"].append(name)
         out[name] = conf
+        if mid == "account":
+            out["image#avatar"] = {"exec": "jace-account --avatar", "size": 22, "interval": 600, "signal": 9,
+                                   "on-click": "jace-settings --page account"}
+            out["custom/jace"] = {"exec": "jace-account --waybar", "return-type": "json", "interval": 300,
+                                  "signal": 9, "format": "{}", "on-click": "jace-settings --page account"}
     return out
 
 

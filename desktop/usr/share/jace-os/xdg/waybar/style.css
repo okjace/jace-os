@@ -30,7 +30,7 @@ tooltip {
 #network,
 #bluetooth,
 #battery,
-#custom-jace,
+#account,
 #mpris,
 #privacy,
 #custom-weather,
@@ -100,13 +100,15 @@ tooltip {
 #battery.warning:not(.charging) { color: #f5c451; }
 #battery.critical:not(.charging) { color: #ff6b6b; }
 
-#custom-jace { font-weight: 600; }
-#custom-jace.signed-out { color: #8b919c; }
+/* Your picture and name: one island. */
+#account { padding: 0 12px 0 5px; }
+#image.avatar { margin-right: 8px; }
+#custom-jace { font-weight: 600; padding: 0; background: transparent; border: none; margin: 0; }
 
 #custom-power:hover { background: #ff5f57; color: #ffffff; }
 
 #custom-start:hover, #pulseaudio:hover, #network:hover, #bluetooth:hover,
-#battery:hover, #custom-jace:hover, #custom-updates:hover {
+#battery:hover, #account:hover, #custom-updates:hover {
   border-color: rgba(61, 220, 132, 0.5);
 }
 

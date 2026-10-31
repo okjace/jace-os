@@ -22,7 +22,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import antivirus, bar, clipboard, menu_edits, shortcuts, store  # noqa: E402
+from jaceos import antivirus, bar, clipboard, menu_edits, profile, shortcuts, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
@@ -322,6 +322,9 @@ class SettingsWindow(Adw.ApplicationWindow):
         page.add(g)
 
         if acct:
+            page.add(group("This computer", None,
+                           switch_row("Use my Jace name and picture", "For this computer's account, the login "
+                                      "screen and the top bar", profile.sync_on(), self._set_profile_sync)))
             page.add(group("Your account", None,
                            link_row("Open your Jace profile", JACE_URL, f"{JACE_URL}/account", "web-browser-symbolic"),
                            button_row("Refresh", "Update your name and picture from Jace", "Refresh",
@@ -387,10 +390,13 @@ class SettingsWindow(Adw.ApplicationWindow):
             return
 
         n = updates.count(result)
-        if result["reboot_required"]:
-            banner = Adw.Banner(title="Restart to finish installing updates", button_label="Restart now",
-                                revealed=True)
-            banner.connect("button-clicked", lambda *_: spawn(["systemctl", "reboot"]))
+        if result.get("finish"):
+            restart = result["finish"] == "restart"
+            banner = Adw.Banner(title="Restart to finish installing updates" if restart else
+                                "Sign out and back in to finish installing updates",
+                                button_label="Restart now" if restart else "Sign out now", revealed=True)
+            banner.connect("button-clicked", lambda *_: spawn(["systemctl", "reboot"] if restart
+                                                              else ["labwc", "--exit"]))
             g = Adw.PreferencesGroup()
             g.add(banner)
             page.add(g)
@@ -1676,9 +1682,8 @@ class SettingsWindow(Adw.ApplicationWindow):
                 g.add(plain_row(title="No camera found", subtitle="Plug one in, then come back here"))
             g.add(button_row("Install face unlock", "Installs Howdy from the AUR with yay. It builds face recognition "
                              "on this computer, which can take 20 minutes or more.", "Install",
-                             lambda: spawn(["jace-terminal", "--", "sh", "-c",
-                                            "yay -S --needed howdy-git; echo; echo Done. Close this window "
-                                            "and open Settings → Face unlock again.; read -r _"]),
+                             lambda: spawn(["jace-terminal", "--", "/usr/lib/jace-os/then-wait",
+                                            "yay", "-S", "--needed", "howdy-git"]),
                              suggested=True))
             page.add(g)
             return page
@@ -1703,11 +1708,12 @@ class SettingsWindow(Adw.ApplicationWindow):
                                                   lambda _r: self.toast("Camera set"))))
         cg.add(button_row("Add your face", "Look at the camera for a few seconds. Add it again with glasses, "
                           "in different light, and so on", "Add",
-                          lambda: spawn(["jace-terminal", "--", "sh", "-c",
-                                         "sudo howdy add; echo; echo Close this window when you're done.; read -r _"]),
+                          lambda: spawn(["jace-terminal", "--", "/usr/lib/jace-os/then-wait",
+                                         "sudo", "howdy", "add"]),
                           suggested=True))
         cg.add(link_row("Test it", "Shows what the camera sees and whether it recognises you",
-                        ["jace-terminal", "--", "sudo", "howdy", "test"], "media-playback-start-symbolic"))
+                        ["jace-terminal", "--", "/usr/lib/jace-os/then-wait", "sudo", "howdy", "test"],
+                        "media-playback-start-symbolic"))
         page.add(cg)
 
         status = dict(ln.split() for ln in run(["jace-face", "status"]).splitlines() if len(ln.split()) == 2)
@@ -1995,29 +2001,136 @@ class SettingsWindow(Adw.ApplicationWindow):
 
     def page_users(self):
         page = Adw.PreferencesPage()
-        user = os.environ.get("USER", "")
-        full = run(["getent", "passwd", user]).split(":")
-        name = full[4].split(",")[0] if len(full) > 4 and full[4] else user
-        groups = run(["id", "-nG"]).split()
-        g = Adw.PreferencesGroup(title="You")
-        row = plain_row(title=name, subtitle=f"{user} · {'Administrator' if 'wheel' in groups else 'Standard user'}")
-        row.add_prefix(Adw.Avatar(size=40, text=name, show_initials=True))
-        g.add(row)
-        g.add(link_row("Change your password", None, ["jace-terminal", "--", "passwd"],
-                       "dialog-password-symbolic"))
+        me = profile.local_user()
+        signed_in = account.load() is not None
+
+        top = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_bottom=6)
+        av = Adw.Avatar(size=96, text=me["name"], show_initials=True, halign=Gtk.Align.CENTER)
+        if me["picture"]:
+            try:
+                av.set_custom_image(Gdk.Texture.new_from_filename(me["picture"]))
+            except GLib.Error:
+                pass
+        top.append(av)
+        top.append(Gtk.Label(label=me["name"], css_classes=["title-1"]))
+        top.append(Gtk.Label(label=f"{me['username']} · {'Administrator' if me['admin'] else 'Standard user'}",
+                             css_classes=["dim-label"]))
+        g = Adw.PreferencesGroup()
+        g.add(top)
         page.add(g)
-        others = [ln.split(":") for ln in run(["getent", "passwd"]).splitlines()]
-        others = [u for u in others if len(u) > 6 and u[2].isdigit() and 1000 <= int(u[2]) < 60000 and u[0] != user]
+
+        yg = Adw.PreferencesGroup(title="You")
+        synced = signed_in and profile.sync_on()
+        if synced:
+            yg.set_description("Your name and picture come from your Jace account. Change them on Jace, "
+                               "or turn off syncing below.")
+        yg.add(button_row("Picture", "Any photo; it's cropped to a square", "Choose…",
+                          self._choose_picture))
+        yg.add(button_row("Name", "Shown on the login screen and the top bar", "Change…", self._change_name))
+        if signed_in:
+            yg.add(switch_row("Use my Jace name and picture", "Keeps them the same as your Jace display name "
+                              "and photo", profile.sync_on(), self._set_profile_sync))
+        yg.add(link_row("Change your password", None, ["jace-terminal", "--", "/usr/lib/jace-os/then-wait", "passwd"],
+                        "dialog-password-symbolic"))
+        page.add(yg)
+
         og = Adw.PreferencesGroup(title="Other people")
         add = Gtk.Button(label="Add a person", css_classes=["flat"])
         add.connect("clicked", lambda *_: self._add_user())
         og.set_header_suffix(add)
+        others = profile.other_users()
         for u in others:
-            og.add(plain_row(title=u[4].split(",")[0] or u[0], subtitle=u[0]))
+            row = plain_row(title=u["name"], subtitle=f"{u['username']} · "
+                                                      f"{'Administrator' if u['admin'] else 'Standard user'}")
+            oav = Adw.Avatar(size=36, text=u["name"], show_initials=True)
+            if u["picture"]:
+                try:
+                    oav.set_custom_image(Gdk.Texture.new_from_filename(u["picture"]))
+                except GLib.Error:
+                    pass
+            row.add_prefix(oav)
+            rm = Gtk.Button(label="Delete", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+            rm.connect("clicked", lambda _b, user=u: self._delete_user(user))
+            row.add_suffix(rm)
+            og.add(row)
         if not others:
             og.add(plain_row(title="Nobody else uses this computer yet"))
         page.add(og)
         return page
+
+    def _choose_picture(self):
+        dialog = Gtk.FileDialog(title="Choose a picture")
+        filt = Gtk.FileFilter(name="Pictures")
+        filt.add_mime_type("image/*")
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(filt)
+        dialog.set_filters(store)
+
+        def done(d, res):
+            try:
+                path = d.open_finish(res).get_path()
+            except GLib.Error:
+                return
+            if account.load() and profile.sync_on():
+                profile.set_sync(False)     # your own picture wins; turn syncing back on to use Jace's
+            ok_ = profile.set_picture(path)
+            account._refresh_bar()
+            self.toast("Picture changed" if ok_ else "That picture couldn't be opened")
+            self.reload()
+
+        dialog.open(self, None, done)
+
+    def _change_name(self):
+        me = profile.local_user()
+        lb = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+        entry = Adw.EntryRow(title="Your name", text=me["name"])
+        lb.append(entry)
+        d = Adw.AlertDialog(heading="Change your name")
+        d.set_extra_child(lb)
+        d.add_response("cancel", "Cancel")
+        d.add_response("save", "Save")
+        d.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+
+        def respond(_d, r):
+            if r != "save":
+                return
+            if account.load() and profile.sync_on():
+                profile.set_sync(False)
+            ok_ = profile.set_name(entry.get_text())
+            account._refresh_bar()
+            self.toast("Name changed" if ok_ else "Couldn't change your name")
+            self.reload()
+
+        d.connect("response", respond)
+        d.present(self)
+
+    def _set_profile_sync(self, on):
+        profile.set_sync(on)
+        if on:
+            background(account.refresh_profile, lambda _r: (self.toast("Synced with Jace"), self.reload()))
+
+    def _delete_user(self, user):
+        box = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+        files = Adw.SwitchRow(title="Also delete their files", subtitle=f"Everything in /home/{user['username']}",
+                              active=False)
+        box.append(files)
+        d = Adw.AlertDialog(heading=f"Delete {user['name']}?",
+                            body="They won't be able to sign in any more. This can't be undone.")
+        d.set_extra_child(box)
+        d.add_response("cancel", "Cancel")
+        d.add_response("delete", "Delete")
+        d.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.set_default_response("cancel")
+
+        def respond(_d, r):
+            if r != "delete":
+                return
+            background(lambda: profile.delete_user(user["uid"], files.get_active()),
+                       lambda res: (self.toast(f"Deleted {user['name']}" if res[0] else f"Couldn't delete: {res[1]}"),
+                                    self.reload()))
+
+        d.connect("response", respond)
+        d.present(self)
 
     def _add_user(self):
         box = Gtk.ListBox(css_classes=["boxed-list"])

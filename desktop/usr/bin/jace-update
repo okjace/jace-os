@@ -31,7 +31,10 @@ exec 9>/run/jace-os/update.lock
 flock -w 600 9 || { say "Another update is still running."; exit 1; }
 while [ -e /var/lib/pacman/db.lck ] && pgrep -x pacman >/dev/null; do sleep 5; done
 
-kernel_before=$(pacman -Q linux linux-lts 2>/dev/null)
+# What needs a restart or a sign-out once it's updated (checked again after the update).
+REBOOT_PKGS='^(linux|linux-lts|linux-zen|linux-hardened|linux-firmware.*|intel-ucode|amd-ucode|systemd|systemd-libs|glibc|dbus|dbus-broker|mesa|vulkan-.*|nvidia.*|cryptsetup|mkinitcpio|plymouth)$'
+RELOGIN_PKGS='^(jace-os|labwc|wlroots.*|waybar|mako|fuzzel|gtk3|gtk4|libadwaita|glib2|qt6-base|qt6-wayland|python|python-gobject|gtk4-layer-shell|xdg-desktop-portal.*|pipewire.*|wireplumber|xorg-xwayland|greetd.*)$'
+before=$(pacman -Q 2>/dev/null)
 status=0
 
 if [ $# -gt 0 ]; then
@@ -55,9 +58,18 @@ else
   command -v paccache >/dev/null && paccache -rk2 >>"$log" 2>&1
 fi
 
-if [ "$kernel_before" != "$(pacman -Q linux linux-lts 2>/dev/null)" ]; then
-  touch /run/jace-os/reboot-required
-  say "The Linux kernel was updated: restart to finish."
+# Compare what changed. /run is cleared when the computer restarts, so these files go away
+# by themselves; the top bar and Settings tell you about them (jaceos/updates.py).
+changed=$(comm -13 <(echo "$before" | sort) <(pacman -Q 2>/dev/null | sort) | awk '{print $1}')
+needs_reboot=$(grep -E "$REBOOT_PKGS" <<<"$changed" | tr '\n' ' ')
+needs_relogin=$(grep -E "$RELOGIN_PKGS" <<<"$changed" | tr '\n' ' ')
+if [ -n "${needs_reboot// }" ]; then
+  echo "$needs_reboot" >> /run/jace-os/reboot-required
+  say "Restart to finish updating: $needs_reboot"
+elif [ -n "${needs_relogin// }" ]; then
+  # A sign-out is enough; jace-session notes when you signed in, so it knows when you have.
+  echo "$needs_relogin" > /run/jace-os/relogin-required
+  say "Sign out and back in to finish updating: $needs_relogin"
 fi
 
 if [ $status -eq 0 ]; then
