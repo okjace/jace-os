@@ -1133,16 +1133,35 @@ class SettingsWindow(Adw.ApplicationWindow):
             pg.add(plain_row(title="Nothing pinned"))
         page.add(pg)
 
-        hg = Adw.PreferencesGroup(title="Hidden apps", description="Apps you hid from the start menu.")
-        for app_id in cfg["hidden"]:
+        hg = Adw.PreferencesGroup(title="Hidden apps",
+                                  description="Apps you hid, and helper tools Jace OS keeps out of the menu "
+                                              "(Settings covers most of them). They still work.")
+        hidden_now = sorted(start_menu.hidden_ids(cfg))
+        shown_any = False
+        for app_id in hidden_now:
             app = start_menu.app_by_id(app_id)
-            row = plain_row(title=app.get_display_name() if app else app_id)
-            b = Gtk.Button(label="Show again", valign=Gtk.Align.CENTER)
-            b.connect("clicked", lambda _b, a=app_id: (cfg["hidden"].remove(a), start_menu.save_config(cfg),
-                                                       self.reload()))
+            if app is None:          # not installed
+                continue
+            shown_any = True
+            mine = app_id in cfg["hidden"]
+            row = plain_row(title=app.get_display_name(), subtitle="Hidden by you" if mine else "A helper tool")
+            if app.get_icon():
+                img = Gtk.Image.new_from_gicon(app.get_icon())
+                img.set_pixel_size(28)
+                row.add_prefix(img)
+            b = Gtk.Button(label="Show", valign=Gtk.Align.CENTER)
+
+            def show(_b, a=app_id, m=mine):
+                if m:
+                    cfg["hidden"].remove(a)
+                if a in start_menu.SYSTEM_HIDDEN and a not in cfg.setdefault("shown", []):
+                    cfg["shown"].append(a)
+                start_menu.save_config(cfg)
+                self.reload()
+            b.connect("clicked", show)
             row.add_suffix(b)
             hg.add(row)
-        if not cfg["hidden"]:
+        if not shown_any:
             hg.add(plain_row(title="No hidden apps"))
         page.add(hg)
 

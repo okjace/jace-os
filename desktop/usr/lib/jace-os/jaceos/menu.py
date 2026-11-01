@@ -53,6 +53,7 @@ DEFAULTS = {
         "org.gnome.SystemMonitor.desktop",
     ],
     "hidden": [],
+    "shown": [],    # helper tools you chose to show again (see SYSTEM_HIDDEN)
 }
 
 SIZES = {  # icon size, menu width, menu height
@@ -72,6 +73,16 @@ def load_config() -> dict:
         cfg.update(json.loads(_file().read_text()))
     except (OSError, ValueError):
         pass
+    # Pins of apps Jace OS replaced move to the new app once the old one is gone.
+    replaced = {"thunar.desktop": "org.gnome.Nautilus.desktop", "foot.desktop": "org.gnome.Ptyxis.desktop",
+                "mpv.desktop": "org.gnome.Showtime.desktop"}
+    pinned = []
+    for app_id in cfg.get("pinned", []):
+        if app_id in replaced and app_by_id(app_id) is None:
+            app_id = replaced[app_id]
+        if app_id not in pinned:
+            pinned.append(app_id)
+    cfg["pinned"] = pinned
     return cfg
 
 
@@ -86,8 +97,33 @@ def save_config(cfg: dict):
         pass
 
 
+# Tools that Settings already covers, or that are for developers and system admins. They stay
+# installed and work; they're just not in the start menu unless you show them again
+# (Settings → Start menu → Hidden apps).
+SYSTEM_HIDDEN = {
+    # Settings covers these
+    "nm-connection-editor.desktop", "blueman-manager.desktop", "blueman-adapters.desktop",
+    "network.cycles.wdisplays.desktop", "wdisplays.desktop", "org.pulseaudio.pavucontrol.desktop",
+    "pavucontrol.desktop", "jace-updates.desktop", "jace-appimage.desktop",
+    # Opened from other apps when needed
+    "org.gnome.FileRoller.desktop", "thunar-bulk-rename.desktop", "thunar-settings.desktop",
+    "thunar-volman-settings.desktop", "foot-server.desktop", "footclient.desktop",
+    # Developer and system tools
+    "lstopo.desktop", "qv4l2.desktop", "qvidcap.desktop", "xgps.desktop", "xgpsspeed.desktop",
+    "cups.desktop", "avahi-discover.desktop", "bssh.desktop", "bvnc.desktop", "qt5ct.desktop",
+    "qt6ct.desktop", "cmake-gui.desktop", "assistant.desktop", "designer.desktop", "linguist.desktop",
+    "qdbusviewer.desktop", "electron.desktop", "uxterm.desktop", "xterm.desktop", "htop.desktop",
+    "btop.desktop", "nvim.desktop", "vim.desktop", "gvim.desktop", "rofi.desktop", "rofi-theme-selector.desktop",
+}
+
+
+def hidden_ids(cfg: dict | None) -> set[str]:
+    cfg = cfg or {}
+    return (SYSTEM_HIDDEN - set(cfg.get("shown", []))) | set(cfg.get("hidden", []))
+
+
 def all_apps(cfg: dict | None = None) -> list[Gio.AppInfo]:
-    hidden = set((cfg or {}).get("hidden", []))
+    hidden = hidden_ids(cfg)
     apps = [a for a in Gio.AppInfo.get_all() if a.should_show() and a.get_id() not in hidden]
     return sorted(apps, key=lambda a: a.get_display_name().lower())
 
