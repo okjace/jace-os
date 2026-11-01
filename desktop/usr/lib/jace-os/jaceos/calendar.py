@@ -13,7 +13,8 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from jaceos import bar, load_css, spawn, which  # noqa: E402
-from jaceos.popup import make_layer, outside_click, place, strip_preload  # noqa: E402
+from jaceos.popup import (animated, hide_animated, make_layer, outside_click, place,  # noqa: E402
+                          show_animated, strip_preload)
 
 strip_preload()
 
@@ -27,13 +28,15 @@ class CalendarWindow(Gtk.ApplicationWindow):
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, css_classes=["jm-panel"],
                              width_request=360)
         position = bar.load()["position"]
-        place(self.panel, "top-center")
+        self.revealer = animated(self.panel)
+        place(self.revealer, "top-center")
         if position == "bottom":
-            self.panel.set_valign(Gtk.Align.END)
-            self.panel.set_margin_top(0)
-            self.panel.set_margin_bottom(48)
-        backdrop.add_overlay(self.panel)
-        outside_click(backdrop, lambda: self.panel, self.close)
+            self.revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP)
+            self.revealer.set_valign(Gtk.Align.END)
+            self.revealer.set_margin_top(0)
+            self.revealer.set_margin_bottom(48)
+        backdrop.add_overlay(self.revealer)
+        outside_click(backdrop, lambda: self.panel, self.dismiss)
 
         self.time = Gtk.Label(css_classes=["jcal-time"], xalign=0)
         self.date = Gtk.Label(css_classes=["dim-label"], xalign=0)
@@ -50,20 +53,27 @@ class CalendarWindow(Gtk.ApplicationWindow):
         row.append(Gtk.Box(hexpand=True))
         if which("gnome-calendar"):
             open_cal = Gtk.Button(label="Open Calendar", css_classes=["flat", "jm-pill"])
-            open_cal.connect("clicked", lambda *_: (spawn(["gnome-calendar"]), self.close()))
+            open_cal.connect("clicked", lambda *_: (spawn(["gnome-calendar"]), self.dismiss()))
             row.append(open_cal)
         settings = Gtk.Button(icon_name="emblem-system-symbolic", css_classes=["flat", "circular"],
                               tooltip_text="Date & time settings")
-        settings.connect("clicked", lambda *_: (spawn(["jace-settings", "--page", "datetime"]), self.close()))
+        settings.connect("clicked", lambda *_: (spawn(["jace-settings", "--page", "datetime"]), self.dismiss()))
         row.append(settings)
         self.panel.append(row)
 
         keys = Gtk.EventControllerKey()
-        keys.connect("key-pressed", lambda _c, k, *_: (self.close(), True)[1] if k == Gdk.KEY_Escape else False)
+        keys.connect("key-pressed", lambda _c, k, *_: (self.dismiss(), True)[1] if k == Gdk.KEY_Escape else False)
         self.add_controller(keys)
         self.set_child(backdrop)
         self.tick()
         GLib.timeout_add_seconds(1, self.tick)
+
+    def dismiss(self):
+        """Slides the panel away, then closes the pop-up."""
+        if getattr(self, "_closing", False):
+            return
+        self._closing = True
+        hide_animated(self.revealer, self.close)
 
     def tick(self):
         now = GLib.DateTime.new_now_local()
@@ -86,9 +96,11 @@ class CalendarApp(Adw.Application):
     def do_command_line(self, _cmdline):
         win = self.get_active_window()
         if win is not None:      # clicking the clock again closes it
-            win.close()
+            win.dismiss()
             return 0
-        CalendarWindow(self).present()
+        win = CalendarWindow(self)
+        win.present()
+        show_animated(win.revealer)
         return 0
 
 

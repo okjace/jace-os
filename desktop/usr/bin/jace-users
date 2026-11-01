@@ -1,0 +1,38 @@
+#!/bin/bash
+# Adds people and sets passwords for Settings → Users. Runs as root through pkexec.
+# Passwords come on standard input, never on the command line.
+#
+#   jace-users add <username> <full name> <admin|standard>   (password on stdin)
+#   jace-users password <username>                            (password on stdin)
+set -euo pipefail
+[ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
+
+valid_user() { [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "That username isn't valid." >&2; exit 1; }; }
+read_password() {
+  IFS= read -r password || true
+  [ -n "${password:-}" ] || { echo "Choose a password." >&2; exit 1; }
+}
+
+case "${1:-}" in
+  add)
+    user=${2:?username}; full=${3:-$2}; kind=${4:-standard}
+    valid_user "$user"
+    getent passwd "$user" >/dev/null && { echo "There's already an account called $user." >&2; exit 1; }
+    read_password
+    groups=video,audio,input,network
+    [ "$kind" = admin ] && groups="$groups,wheel"
+    useradd -m -s /bin/bash -c "$full" -G "$groups" "$user"
+    printf '%s:%s\n' "$user" "$password" | chpasswd
+    runuser -u "$user" -- xdg-user-dirs-update >/dev/null 2>&1 || true ;;
+  password)
+    user=${2:?username}
+    valid_user "$user"
+    uid=$(id -u "$user" 2>/dev/null) || { echo "No account called $user." >&2; exit 1; }
+    [ "$uid" -ge 1000 ] || { echo "That's a system account." >&2; exit 1; }
+    read_password
+    printf '%s:%s\n' "$user" "$password" | chpasswd
+    # Clear a forced password change (how accounts used to be made), which the login screen can't do.
+    chage -d "$(date +%F)" "$user" ;;
+  *)
+    sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

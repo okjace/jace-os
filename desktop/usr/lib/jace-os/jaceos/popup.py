@@ -61,3 +61,29 @@ def outside_click(backdrop: Gtk.Widget, panel_getter, on_outside):
     gesture = Gtk.GestureClick()
     gesture.connect("pressed", pressed)
     backdrop.add_controller(gesture)
+
+
+ANIMATION_MS = 180
+
+
+def animated(panel: Gtk.Widget) -> Gtk.Revealer:
+    """Wraps a pop-up's panel so it slides and fades in and out. Place the returned revealer
+    (not the panel) on the backdrop."""
+    revealer = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
+                            transition_duration=ANIMATION_MS, child=panel, reveal_child=False)
+    revealer.add_css_class("jp-revealer")
+    panel.add_css_class("jp-hidden")      # fades in as it slides (apps.css)
+    return revealer
+
+
+def show_animated(revealer: Gtk.Revealer):
+    """Call after presenting the window: the panel slides in."""
+    revealer.get_child().remove_css_class("jp-hidden")
+    GLib.idle_add(lambda: (revealer.set_reveal_child(True), False)[1])
+
+
+def hide_animated(revealer: Gtk.Revealer, then):
+    """The panel slides out, then then() runs (hide or close the window)."""
+    revealer.get_child().add_css_class("jp-hidden")
+    revealer.set_reveal_child(False)
+    GLib.timeout_add(ANIMATION_MS + 20, lambda: (then(), False)[1])

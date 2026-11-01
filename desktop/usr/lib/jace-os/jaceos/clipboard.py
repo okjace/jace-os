@@ -21,7 +21,8 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from jaceos import config_dir, data_dir, load_css, which  # noqa: E402
-from jaceos.popup import make_layer, outside_click, place, strip_preload  # noqa: E402
+from jaceos.popup import (animated, hide_animated, make_layer, outside_click, place,  # noqa: E402
+                          show_animated, strip_preload)
 
 strip_preload()
 
@@ -114,7 +115,7 @@ def copy(data: bytes):
 def paste_soon():
     """Pastes into the app you were using once the pop-up has closed (Ctrl+V)."""
     if which("wtype") and (config_dir() / "clipboard-no-autopaste").exists() is False:
-        subprocess.Popen(["sh", "-c", "sleep 0.25; wtype -M ctrl -k v -m ctrl"], start_new_session=True)
+        subprocess.Popen(["sh", "-c", "sleep 0.45; wtype -M ctrl -k v -m ctrl"], start_new_session=True)
 
 
 # --- the pop-up -------------------------------------------------------------------------------------
@@ -127,9 +128,10 @@ class ClipboardWindow(Gtk.ApplicationWindow):
         backdrop.set_child(Gtk.Box(hexpand=True, vexpand=True))
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, css_classes=["jm-panel", "jc-panel"],
                              width_request=440, height_request=560)
-        place(self.panel, "top-center")
-        backdrop.add_overlay(self.panel)
-        outside_click(backdrop, lambda: self.panel, self.close)
+        self.revealer = animated(self.panel)
+        place(self.revealer, "top-center")
+        backdrop.add_overlay(self.revealer)
+        outside_click(backdrop, lambda: self.panel, self.dismiss)
 
         head = Gtk.Box(spacing=8)
         head.append(Gtk.Label(label="Clipboard", css_classes=["jm-heading"], xalign=0, hexpand=True))
@@ -155,6 +157,13 @@ class ClipboardWindow(Gtk.ApplicationWindow):
         self.add_controller(keys)
         self.set_child(backdrop)
         self.fill()
+
+    def dismiss(self):
+        """Slides the panel away, then closes the pop-up."""
+        if getattr(self, "_closing", False):
+            return
+        self._closing = True
+        hide_animated(self.revealer, self.close)
 
     def fill(self):
         self.list.remove_all()
@@ -221,7 +230,7 @@ class ClipboardWindow(Gtk.ApplicationWindow):
         if not hasattr(row, "item"):
             return
         copy(self._data(row))
-        self.close()
+        self.dismiss()
         paste_soon()
 
     def _activate_first(self):
@@ -252,7 +261,7 @@ class ClipboardWindow(Gtk.ApplicationWindow):
 
     def _key(self, _c, keyval, _code, _state):
         if keyval == Gdk.KEY_Escape:
-            self.close()
+            self.dismiss()
             return True
         if keyval in (Gdk.KEY_Down, Gdk.KEY_Up):
             return False
@@ -273,10 +282,11 @@ class ClipboardApp(Adw.Application):
     def do_command_line(self, _cmdline):
         win = self.get_active_window()
         if win is not None:      # pressing Win+V again closes it
-            win.close()
+            win.dismiss()
             return 0
         win = ClipboardWindow(self)
         win.present()
+        show_animated(win.revealer)
         win.search.grab_focus()
         return 0
 

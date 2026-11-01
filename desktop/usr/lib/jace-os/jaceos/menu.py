@@ -25,7 +25,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from jaceos import account, config_dir, load_css, spawn  # noqa: E402
 
-from jaceos.popup import strip_preload  # noqa: E402
+from jaceos.popup import animated, hide_animated, show_animated, strip_preload  # noqa: E402
 
 strip_preload()   # apps started from the menu must not inherit gtk4-layer-shell
 
@@ -189,11 +189,13 @@ class MenuWindow(Gtk.ApplicationWindow):
                              width_request=width, height_request=height)
         self.panel.set_opacity(1)
         pos = self.cfg["position"]
-        self.panel.set_halign(Gtk.Align.START if pos == "top-left" else Gtk.Align.CENTER)
-        self.panel.set_valign(Gtk.Align.CENTER if pos == "center" else Gtk.Align.START)
-        self.panel.set_margin_top(48 if pos != "center" else 0)
-        self.panel.set_margin_start(8 if pos == "top-left" else 0)
-        backdrop.add_overlay(self.panel)
+        # The panel slides and fades in (popup.animated); the revealer is what gets placed.
+        self.revealer = animated(self.panel)
+        self.revealer.set_halign(Gtk.Align.START if pos == "top-left" else Gtk.Align.CENTER)
+        self.revealer.set_valign(Gtk.Align.CENTER if pos == "center" else Gtk.Align.START)
+        self.revealer.set_margin_top(48 if pos != "center" else 0)
+        self.revealer.set_margin_start(8 if pos == "top-left" else 0)
+        backdrop.add_overlay(self.revealer)
         alpha = max(0.6, min(1.0, float(self.cfg.get("opacity", 0.94))))
         self._panel_css = Gtk.CssProvider()
         self._panel_css.load_from_string(f".jm-panel {{ background-color: rgba(22, 24, 29, {alpha}); }}")
@@ -384,10 +386,13 @@ class MenuWindow(Gtk.ApplicationWindow):
         self.update_account()
         self.refresh()
         self.present()
+        show_animated(self.revealer)
         self.search.grab_focus()
 
     def close_menu(self):
-        self.set_visible(False)
+        if not self.get_visible():
+            return
+        hide_animated(self.revealer, lambda: None if self.revealer.get_reveal_child() else self.set_visible(False))
 
 
 class MenuApp(Adw.Application):

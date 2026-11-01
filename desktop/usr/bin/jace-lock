@@ -1,12 +1,14 @@
 #!/bin/sh
-# Locks the screen with the Jace OS look.
+# Locks the screen with the Jace OS lock screen (gtklock), or swaylock if gtklock is missing.
+pgrep -x gtklock >/dev/null && exit 0
 pgrep -x swaylock >/dev/null && exit 0
-wallpaper="$(jace-wallpaper path)"
-exec swaylock -f \
-  --image "$wallpaper" --scaling fill \
-  --indicator-radius 90 --indicator-thickness 8 \
-  --inside-color 16181dcc --ring-color 3ddc84 --key-hl-color 5ae69a \
-  --line-color 00000000 --separator-color 00000000 \
-  --text-color e6e8eb --inside-ver-color 16181dcc --ring-ver-color 3ddc84 \
-  --inside-wrong-color 16181dcc --ring-wrong-color ff6b6b \
-  --font Inter
+lib="${JACE_OS_ROOT:-}/usr/lib/jace-os"
+if command -v gtklock >/dev/null 2>&1; then
+  bg=$(PYTHONPATH="$lib" python3 -m jaceos.lockscreen background 2>/dev/null)
+  fmt=$(PYTHONPATH="$lib" python3 -m jaceos.lockscreen time-format 2>/dev/null)
+  exec gtklock -d -c "$(jace-config-path gtklock/config.ini)" ${bg:+-b "$bg"} -t "${fmt:-%H:%M}" "$@"
+fi
+exec swaylock -f --image "$(jace-wallpaper path)" --scaling fill \
+  --indicator-radius 90 --indicator-thickness 8 --inside-color 16181dcc --ring-color 3ddc84 \
+  --key-hl-color 5ae69a --line-color 00000000 --separator-color 00000000 --text-color e6e8eb \
+  --inside-ver-color 16181dcc --ring-ver-color 3ddc84 --inside-wrong-color 16181dcc --ring-wrong-color ff6b6b --font Inter

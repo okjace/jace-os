@@ -63,3 +63,14 @@
 .jcal-time { font-size: 2em; font-weight: 800; }
 .jcal-calendar { background: transparent; border: none; }
 .jcal-calendar > grid > label.today { background: #3ddc84; color: #0c1410; border-radius: 999px; }
+
+/* --- animations --- */
+/* Pop-ups fade as they slide in and out (jaceos/popup.py). */
+.jm-panel { transition: opacity 180ms ease-out; }
+.jm-panel.jp-hidden { opacity: 0; }
+/* Buttons and rows ease into hover and selection. */
+.jm-app, .jc-row, .jm-account, .jm-pill, .jw-thumb, .jw-app,
+.navigation-sidebar row, .boxed-list row {
+  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+.jm-app:active, .jw-app:active { transition: background-color 60ms ease; }

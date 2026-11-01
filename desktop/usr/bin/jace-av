@@ -8,6 +8,7 @@
 #   jace-av quarantine           list quarantined files
 #   jace-av restore <name> <to>  put a quarantined file back (owned by whoever asked)
 #   jace-av delete <name>        delete a quarantined file for good
+#   jace-av delete-path <file>   delete a detected file that's still in place (home folders)
 set -u
 q=/var/lib/jace-os/quarantine
 
@@ -54,6 +55,14 @@ case "${1:-}" in
   delete)
     name=$(basename -- "${2:?name}")
     rm -f -- "$q/$name" ;;
+  delete-path)
+    # A detected file outside quarantine that you can't delete yourself (owned by another
+    # account). Only files the virus scanner found are deleted, and only under /home.
+    target=$(realpath -e -- "${2:?path}") || { echo "It's already gone." >&2; exit 1; }
+    case "$target" in /home/*) ;; *) echo "Only files in home folders." >&2; exit 1 ;; esac
+    grep -qF "\"file\": \"$target\"" /var/lib/jace-os/av/events.log ||
+      { echo "That file wasn't found by the virus scanner." >&2; exit 1; }
+    rm -f -- "$target" ;;
   *)
     sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
     exit 2 ;;

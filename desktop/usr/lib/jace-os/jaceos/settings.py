@@ -22,7 +22,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import antivirus, bar, clipboard, menu_edits, profile, shortcuts, store  # noqa: E402
+from jaceos import antivirus, avatars, bar, clipboard, menu_edits, profile, shortcuts, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
@@ -160,6 +160,22 @@ def cursor_preview(folder: Path) -> str | None:
     return str(out) if out.exists() else None
 
 
+def capture_cameras() -> list[tuple[str, str, bool]]:
+    """Cameras that give a picture: (device, name, infrared). A webcam usually also shows up
+    as a second /dev/video device (index 1) that only carries metadata; those are left out."""
+    out = []
+    for dev in sorted(Path("/sys/class/video4linux").glob("video*"), key=lambda p: int(p.name[5:] or 0)):
+        try:
+            if (dev / "index").read_text().strip() != "0":
+                continue
+            name = (dev / "name").read_text().strip()
+        except OSError:
+            continue
+        ir = bool(re.search(r"\bIR\b|infrared", name, re.I))
+        out.append((f"/dev/{dev.name}", name.split(":")[0], ir))
+    return out
+
+
 def gsettings_get(schema, key) -> str:
     return run(["gsettings", "get", schema, key]).strip().strip("'")
 
@@ -285,8 +301,21 @@ class SettingsWindow(Adw.ApplicationWindow):
         self.content_page.set_title(title)
         builder = getattr(self, f"page_{pid}")
         self.current = pid
-        self.content.set_content(builder())
+        self._set_page(builder())
         self.split.set_show_content(True)
+
+    def _set_page(self, page):
+        """Shows a page with a short crossfade from the one before."""
+        stack = getattr(self, "_pages", None)
+        if stack is None:
+            stack = self._pages = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE,
+                                            transition_duration=160)
+            self.content.set_content(stack)
+        old = stack.get_visible_child()
+        stack.add_child(page)
+        stack.set_visible_child(page)
+        if old is not None:
+            GLib.timeout_add(220, lambda: (stack.remove(old) if old.get_parent() is stack else None, False)[1])
 
     def reload(self):
         self.show(self.current)
@@ -386,7 +415,7 @@ class SettingsWindow(Adw.ApplicationWindow):
         page = Adw.PreferencesPage()
         if isinstance(result, Exception):
             page.add(group("", None, plain_row(title="Couldn't check for updates", subtitle=str(result))))
-            self.content.set_content(page)
+            self._set_page(page)
             return
 
         n = updates.count(result)
@@ -469,7 +498,7 @@ class SettingsWindow(Adw.ApplicationWindow):
             auto.add(plain_row(title="The last update didn't finish",
                                    subtitle=result["last_error"].splitlines()[-1][:200]))
         page.add(auto)
-        self.content.set_content(page)
+        self._set_page(page)
 
     def _set_auto(self, on):
         background(lambda: updates.set_auto(on),
@@ -566,23 +595,73 @@ class SettingsWindow(Adw.ApplicationWindow):
                 bt.connect("clicked", lambda _b, i=item, f=fn: f(i))
                 row.add_suffix(bt)
             qg.add(row)
-        events = [e for e in antivirus.events() if e.get("file", "").startswith(str(Path.home()))]
+        events = [e for e in antivirus.events() if e.get("file", "").startswith(str(Path.home()))
+                  and not antivirus.dismissed(e)]
         for ev in events[:15]:
             when = GLib.DateTime.new_from_unix_local(ev["time"]).format("%b %-d, %H:%M")
-            row = plain_row(title=Path(ev["file"]).name, subtitle=f"{ev['virus']} · {when} · {ev['file']}")
-            name = Path(ev["file"]).name
-            rb = Gtk.Button(label="Restore", valign=Gtk.Align.CENTER)
-            rb.connect("clicked", lambda _b, n=name, f=ev["file"]: self._av_helper(
-                ["restore", n, f], f"Restored {n}", reload=True))
-            db = Gtk.Button(label="Delete", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
-            db.connect("clicked", lambda _b, n=name: self._av_helper(["delete", n], f"Deleted {n}", reload=True))
-            row.add_suffix(rb)
-            row.add_suffix(db)
+            path = Path(ev["file"])
+            still_there = path.exists()
+            where = "Still in its folder" if still_there else "In quarantine"
+            row = plain_row(title=path.name, subtitle=f"{ev['virus']} · {when} · {where}\n{ev['file']}")
+            row.set_subtitle_lines(3)
+            if still_there:
+                # Found by a scan but not moved: act on the file where it is.
+                qb = Gtk.Button(label="Quarantine", valign=Gtk.Align.CENTER)
+                qb.connect("clicked", lambda _b, e=ev: self._av_event(e, "quarantine"))
+                db = Gtk.Button(label="Delete", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+                db.connect("clicked", lambda _b, e=ev: self._av_event(e, "delete-file"))
+                row.add_suffix(qb)
+                row.add_suffix(db)
+            else:
+                rb = Gtk.Button(label="Restore", valign=Gtk.Align.CENTER)
+                rb.connect("clicked", lambda _b, e=ev: self._av_event(e, "restore"))
+                db = Gtk.Button(label="Delete", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+                db.connect("clicked", lambda _b, e=ev: self._av_event(e, "delete-quarantined"))
+                row.add_suffix(rb)
+                row.add_suffix(db)
+            ib = Gtk.Button(icon_name="window-close-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                            tooltip_text="Ignore: it's safe (a false alarm)")
+            ib.connect("clicked", lambda _b, e=ev: self._av_event(e, "ignore"))
+            row.add_suffix(ib)
             qg.add(row)
         if not mine and not events:
             qg.add(plain_row(title="Nothing in quarantine"))
         page.add(qg)
         return page
+
+    def _av_event(self, ev, what):
+        """Acts on a detection from the threat log, then takes it off the list."""
+        path, name = Path(ev["file"]), Path(ev["file"]).name
+
+        def work():
+            if what == "ignore":
+                return True, f"Ignored {name}"
+            if what == "quarantine":
+                antivirus.quarantine(str(path), ev["virus"])
+                return True, f"Moved {name} to quarantine"
+            if what == "delete-file":
+                try:
+                    path.unlink()
+                except PermissionError:
+                    good, msg = antivirus.helper("delete-path", str(path))
+                    if not good:
+                        return False, msg or f"Couldn't delete {name}"
+                return True, f"Deleted {name}"
+            if what == "restore":
+                good, msg = antivirus.helper("restore", name, str(path))
+                return good, (f"Restored {name}" if good else msg or "Couldn't restore it")
+            good, msg = antivirus.helper("delete", name)
+            return good, (f"Deleted {name}" if good else msg or "Couldn't delete it")
+
+        def done(res):
+            good, msg = res if isinstance(res, tuple) else (False, str(res))
+            if good:
+                antivirus.dismiss(ev)
+            self.toast(msg)
+            if getattr(self, "current", "") == "security":
+                self.reload()
+
+        background(work, done)
 
     def _av_helper(self, args, success, reload=True):
         def done(res):
@@ -1689,23 +1768,31 @@ class SettingsWindow(Adw.ApplicationWindow):
             return page
 
         cg = Adw.PreferencesGroup(title="Camera")
-        if cams:
-            current = ""
-            for conf in ("/etc/howdy/config.ini", "/usr/lib/security/howdy/config.ini"):
-                try:
-                    current = next((ln.split("=", 1)[1].strip() for ln in Path(conf).read_text().splitlines()
-                                    if ln.strip().startswith("device_path")), "")
-                    break
-                except OSError:
-                    continue
-            opts = []
-            for c in cams:
-                name = Path(f"/sys/class/video4linux/{c.name}/name")
-                label = name.read_text().strip() if name.exists() else c.name
-                opts.append((str(c), f"{label} ({c.name})" + ("  · infrared" if "ir" in label.lower() else "")))
-            cg.add(combo_row("Camera", "Laptops often have two: pick the infrared one if there is one", opts, current,
-                             lambda v: background(lambda: subprocess.run(["pkexec", "/usr/bin/jace-face", "camera", v]),
-                                                  lambda _r: self.toast("Camera set"))))
+        current = ""
+        for conf in ("/etc/howdy/config.ini", "/usr/lib/security/howdy/config.ini"):
+            try:
+                current = next((ln.split("=", 1)[1].strip() for ln in Path(conf).read_text().splitlines()
+                                if ln.strip().startswith("device_path")), "")
+                break
+            except OSError:
+                continue
+        real = capture_cameras()
+        set_camera = lambda v: background(  # noqa: E731
+            lambda: subprocess.run(["pkexec", "/usr/bin/jace-face", "camera", v]).returncode,
+            lambda r: (self.toast("Camera set" if r == 0 else "The camera wasn't changed"), self.reload()))
+        if real and current not in [c for c, _l, _ir in real]:
+            # e.g. /dev/video1 on many laptops: a metadata device with no picture ("Failed to read camera").
+            best = next((c for c, _l, ir in real if ir), real[0][0])
+            fix = Adw.Banner(title="Face unlock is using a camera that doesn't give a picture",
+                             button_label="Use the right camera", revealed=True)
+            fix.connect("button-clicked", lambda *_: set_camera(best))
+            cg.add(fix)
+        if real:
+            cg.add(combo_row("Camera", "Pick the infrared one if your computer has one",
+                             [(c, label + ("  · infrared" if ir else "")) for c, label, ir in real], current,
+                             set_camera))
+        else:
+            cg.add(plain_row(title="No camera found"))
         cg.add(button_row("Add your face", "Look at the camera for a few seconds. Add it again with glasses, "
                           "in different light, and so on", "Add",
                           lambda: spawn(["jace-terminal", "--", "/usr/lib/jace-os/then-wait",
@@ -2024,8 +2111,8 @@ class SettingsWindow(Adw.ApplicationWindow):
         if synced:
             yg.set_description("Your name and picture come from your Jace account. Change them on Jace, "
                                "or turn off syncing below.")
-        yg.add(button_row("Picture", "Any photo; it's cropped to a square", "Choose…",
-                          self._choose_picture))
+        yg.add(button_row("Picture", "Pick one, make your own, or use a photo", "Change…",
+                          self._picture_dialog))
         yg.add(button_row("Name", "Shown on the login screen and the top bar", "Change…", self._change_name))
         if signed_in:
             yg.add(switch_row("Use my Jace name and picture", "Keeps them the same as your Jace display name "
@@ -2049,6 +2136,9 @@ class SettingsWindow(Adw.ApplicationWindow):
                 except GLib.Error:
                     pass
             row.add_prefix(oav)
+            pwb = Gtk.Button(label="Set password", valign=Gtk.Align.CENTER)
+            pwb.connect("clicked", lambda _b, user=u: self._set_user_password(user))
+            row.add_suffix(pwb)
             rm = Gtk.Button(label="Delete", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
             rm.connect("clicked", lambda _b, user=u: self._delete_user(user))
             row.add_suffix(rm)
@@ -2057,6 +2147,141 @@ class SettingsWindow(Adw.ApplicationWindow):
             og.add(plain_row(title="Nobody else uses this computer yet"))
         page.add(og)
         return page
+
+    def _picture_dialog(self):
+        """Pick a ready-made picture, build one (colours + emoji or letters), or use a file."""
+        dialog = Adw.Dialog(title="Your picture", content_width=520, content_height=600)
+        view = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        stack = Adw.ViewStack()
+        switcher = Adw.ViewSwitcher(stack=stack, policy=Adw.ViewSwitcherPolicy.WIDE)
+        header.set_title_widget(switcher)
+        view.add_top_bar(header)
+        cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "jace-os" / "avatars"
+        cache.mkdir(parents=True, exist_ok=True)
+
+        def use(design):
+            out = cache / "chosen.png"
+            avatars.render(design, str(out))
+            self._apply_picture(str(out))
+            dialog.close()
+
+        # Ready-made
+        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=4, min_children_per_line=4,
+                           column_spacing=12, row_spacing=12, margin_top=18, margin_start=18, margin_end=18,
+                           homogeneous=True, valign=Gtk.Align.START)
+        for i, design in enumerate(avatars.PRESETS):
+            f = cache / f"preset-{i}.png"
+            if not f.exists():
+                avatars.render(design, str(f), 160)
+            av = Adw.Avatar(size=88)
+            av.set_custom_image(Gdk.Texture.new_from_filename(str(f)))
+            b = Gtk.Button(child=av, css_classes=["flat", "circular"])
+            b.connect("clicked", lambda _b, d=design: use(d))
+            flow.append(b)
+        stack.add_titled_with_icon(Gtk.ScrolledWindow(child=flow, vexpand=True), "pick", "Pick one",
+                                   "view-grid-symbolic")
+
+        # Builder
+        design = {"bg": ["#3ddc84", "#1f9d5a"], "emoji": "😀"}
+        b_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, margin_top=18, margin_start=18,
+                        margin_end=18, margin_bottom=18)
+        preview = Adw.Avatar(size=140, halign=Gtk.Align.CENTER)
+        b_box.append(preview)
+
+        def redraw():
+            f = cache / "builder.png"
+            avatars.render(design, str(f), 280)
+            # From the bytes, so the preview can't keep showing an earlier version of the file.
+            preview.set_custom_image(Gdk.Texture.new_from_bytes(GLib.Bytes.new(f.read_bytes())))
+
+        def color_row(label, index):
+            row = Gtk.Box(spacing=6, halign=Gtk.Align.CENTER)
+            row.append(Gtk.Label(label=label, css_classes=["dim-label"], width_chars=9, xalign=0))
+            for c in avatars.COLORS:
+                sw = Gtk.Button(css_classes=["circular", "jw-swatch"], width_request=26, height_request=26,
+                                tooltip_text=c)
+                prov = Gtk.CssProvider()
+                prov.load_from_string(f"button {{ background: {c}; min-width: 26px; min-height: 26px; }}")
+                sw.get_style_context().add_provider(prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+                def pick(_b, color=c):
+                    if index == 0:
+                        design["bg"][0] = color
+                    elif len(design["bg"]) > 1:
+                        design["bg"][1] = color
+                    else:
+                        design["bg"].append(color)
+                    redraw()
+                sw.connect("clicked", pick)
+                row.append(sw)
+            return row
+
+        b_box.append(color_row("Colour", 0))
+        gradient = Adw.SwitchRow(title="Fade into a second colour", active=True)
+        second = color_row("Second", 1)
+
+        def toggle_gradient(r, _p):
+            second.set_sensitive(r.get_active())
+            if r.get_active() and len(design["bg"]) == 1:
+                design["bg"].append("#1f9d5a")
+            elif not r.get_active():
+                design["bg"] = design["bg"][:1]
+            redraw()
+        gradient.connect("notify::active", toggle_gradient)
+        lb = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+        lb.append(gradient)
+        b_box.append(lb)
+        b_box.append(second)
+
+        what = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        emoji_btn = Gtk.Button(label="Choose an emoji…", css_classes=["pill"])
+        chooser = Gtk.EmojiChooser()
+        chooser.set_parent(emoji_btn)
+
+        def emoji_picked(_c, text):
+            design.pop("text", None)
+            design["emoji"] = text
+            redraw()
+        chooser.connect("emoji-picked", emoji_picked)
+        emoji_btn.connect("clicked", lambda *_: chooser.popup())
+        letters = Gtk.Entry(placeholder_text="Or letters, like JC", max_length=2, width_chars=12)
+
+        def letters_changed(e):
+            if e.get_text().strip():
+                design.pop("emoji", None)
+                design["text"] = e.get_text()
+                redraw()
+        letters.connect("changed", letters_changed)
+        what.append(emoji_btn)
+        what.append(letters)
+        b_box.append(what)
+        save = Gtk.Button(label="Use this picture", css_classes=["pill", "suggested-action"], halign=Gtk.Align.CENTER)
+        save.connect("clicked", lambda *_: use(dict(design, bg=list(design["bg"]))))
+        b_box.append(save)
+        redraw()
+        stack.add_titled_with_icon(Gtk.ScrolledWindow(child=b_box, vexpand=True), "build", "Make your own",
+                                   "applications-graphics-symbolic")
+
+        # From a file
+        f_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, valign=Gtk.Align.CENTER)
+        f_box.append(Gtk.Label(label="Use any photo. It's cropped to a square.", css_classes=["dim-label"]))
+        fb = Gtk.Button(label="Choose a photo…", css_classes=["pill", "suggested-action"], halign=Gtk.Align.CENTER)
+        fb.connect("clicked", lambda *_: (dialog.close(), self._choose_picture()))
+        f_box.append(fb)
+        stack.add_titled_with_icon(f_box, "file", "From a file", "image-x-generic-symbolic")
+
+        view.set_content(stack)
+        dialog.set_child(view)
+        dialog.present(self)
+
+    def _apply_picture(self, path):
+        if account.load() and profile.sync_on():
+            profile.set_sync(False)     # your own picture wins; turn syncing back on to use Jace's
+        good = profile.set_picture(path)
+        account._refresh_bar()
+        self.toast("Picture changed" if good else "That picture couldn't be used")
+        self.reload()
 
     def _choose_picture(self):
         dialog = Gtk.FileDialog(title="Choose a picture")
@@ -2071,12 +2296,7 @@ class SettingsWindow(Adw.ApplicationWindow):
                 path = d.open_finish(res).get_path()
             except GLib.Error:
                 return
-            if account.load() and profile.sync_on():
-                profile.set_sync(False)     # your own picture wins; turn syncing back on to use Jace's
-            ok_ = profile.set_picture(path)
-            account._refresh_bar()
-            self.toast("Picture changed" if ok_ else "That picture couldn't be opened")
-            self.reload()
+            self._apply_picture(path)
 
         dialog.open(self, None, done)
 
@@ -2133,29 +2353,75 @@ class SettingsWindow(Adw.ApplicationWindow):
         d.present(self)
 
     def _add_user(self):
-        box = Gtk.ListBox(css_classes=["boxed-list"])
+        box = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
         full = Adw.EntryRow(title="Full name")
         login = Adw.EntryRow(title="Username (lowercase, no spaces)")
-        admin = Adw.SwitchRow(title="Administrator")
-        for r in (full, login, admin):
+        pw = Adw.PasswordEntryRow(title="Password")
+        pw2 = Adw.PasswordEntryRow(title="Type it again")
+        admin = Adw.SwitchRow(title="Administrator", subtitle="Can install apps and change settings for everyone")
+        for r in (full, login, pw, pw2, admin):
             box.append(r)
-        d = Adw.AlertDialog(heading="Add a person", body="They'll set their password the first time they sign in.")
+
+        def fill_login(*_):
+            guess = re.sub(r"[^a-z0-9_-]", "", (full.get_text().strip().lower().split() or [""])[0])[:32]
+            if not login.get_text() or login.get_text() == getattr(login, "_auto", ""):
+                login.set_text(guess)
+                login._auto = guess
+        full.connect("changed", fill_login)
+
+        d = Adw.AlertDialog(heading="Add a person", body="They sign in with this username and password.")
         d.set_extra_child(box)
         d.add_response("cancel", "Cancel")
         d.add_response("add", "Add")
         d.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
 
         def respond(_d, r):
-            u = login.get_text().strip()
-            if r != "add" or not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", u):
-                if r == "add":
-                    self.toast("That username isn't valid")
+            if r != "add":
                 return
-            cmd = ["pkexec", "sh", "-c",
-                   'useradd -m -c "$1" -G "$2" "$3" && passwd -d "$3" && passwd -e "$3"', "sh",
-                   full.get_text().strip() or u, "wheel" if admin.get_active() else "users", u]
-            background(lambda: ok(cmd, timeout=120),
-                       lambda good: (self.toast(f"Added {u}" if good is True else "Couldn't add them"), self.reload()))
+            u = login.get_text().strip()
+            if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", u):
+                self.toast("That username isn't valid")
+                return
+            if not pw.get_text() or pw.get_text() != pw2.get_text():
+                self.toast("The passwords are empty or don't match")
+                return
+            cmd = ["pkexec", "/usr/bin/jace-users", "add", u, full.get_text().strip() or u,
+                   "admin" if admin.get_active() else "standard"]
+            password = pw.get_text()
+            background(lambda: self._run_with_password(cmd, password),
+                       lambda res: (self.toast(f"Added {u}" if res[0] else res[1]), self.reload()))
+
+        d.connect("response", respond)
+        d.present(self)
+
+    @staticmethod
+    def _run_with_password(cmd, password):
+        r = subprocess.run(cmd, input=password + "\n", capture_output=True, text=True, timeout=120)
+        return r.returncode == 0, (r.stderr.strip().splitlines() or ["That didn't work"])[-1]
+
+    def _set_user_password(self, user):
+        box = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+        pw = Adw.PasswordEntryRow(title="New password")
+        pw2 = Adw.PasswordEntryRow(title="Type it again")
+        box.append(pw)
+        box.append(pw2)
+        d = Adw.AlertDialog(heading=f"Set a password for {user['name']}")
+        d.set_extra_child(box)
+        d.add_response("cancel", "Cancel")
+        d.add_response("set", "Set password")
+        d.set_response_appearance("set", Adw.ResponseAppearance.SUGGESTED)
+
+        def respond(_d, r):
+            if r != "set":
+                return
+            if not pw.get_text() or pw.get_text() != pw2.get_text():
+                self.toast("The passwords are empty or don't match")
+                return
+            cmd = ["pkexec", "/usr/bin/jace-users", "password", user["username"]]
+            password = pw.get_text()
+            background(lambda: self._run_with_password(cmd, password),
+                       lambda res: self.toast(f"{user['name']} can sign in with the new password" if res[0]
+                                              else res[1]))
 
         d.connect("response", respond)
         d.present(self)

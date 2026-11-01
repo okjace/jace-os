@@ -33,6 +33,8 @@ depends=(
   nautilus nautilus-python sushi file-roller gvfs gvfs-mtp ptyxis
   gnome-text-editor loupe gnome-calculator gnome-system-monitor gnome-disk-utility baobab
   showtime decibels papers gnome-characters gnome-calendar
+  # Lock screen
+  gtklock gtklock-userinfo-module gtklock-powerbar-module gtklock-playerctl-module
   # Clipboard manager (Win+V pastes with wtype), pointer previews and themes
   wtype xcur2png capitaine-cursors
   # Look

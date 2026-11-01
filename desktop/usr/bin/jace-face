@@ -14,7 +14,7 @@ MARK='# Jace OS face unlock (Settings → Face unlock)'
 
 pam_file() {
   case "$1" in
-    lock) echo /etc/pam.d/swaylock ;;
+    lock) echo /etc/pam.d/gtklock ;;
     login) echo /etc/pam.d/greetd ;;
     sudo) echo /etc/pam.d/sudo ;;
     admin) echo /etc/pam.d/polkit-1 ;;

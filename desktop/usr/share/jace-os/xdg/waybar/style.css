@@ -49,6 +49,11 @@ tooltip {
   border-radius: 12px;
   padding: 0 12px;
   margin: 2px 0;
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+
+#workspaces button, #taskbar button {
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease, min-width 200ms ease;
 }
 
 #custom-start {

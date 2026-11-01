@@ -92,6 +92,31 @@ def events(limit: int = 50) -> list[dict]:
     return out
 
 
+def _dismissed_file() -> Path:
+    return data_dir() / "av-dismissed.json"
+
+
+def _event_key(ev: dict) -> str:
+    return f"{ev.get('time')}|{ev.get('file')}"
+
+
+def dismissed(ev: dict) -> bool:
+    """Detections you've dealt with (deleted, quarantined, restored or ignored) leave the list."""
+    try:
+        return _event_key(ev) in json.loads(_dismissed_file().read_text())
+    except (OSError, ValueError):
+        return False
+
+
+def dismiss(ev: dict):
+    try:
+        done = json.loads(_dismissed_file().read_text())
+    except (OSError, ValueError):
+        done = []
+    done.append(_event_key(ev))
+    _dismissed_file().write_text(json.dumps(done[-500:]))
+
+
 def system_quarantine() -> dict[str, dict]:
     """What real-time protection and scheduled scans quarantined: name -> {size, time}."""
     r = subprocess.run(["pkexec", HELPER, "quarantine"], capture_output=True, text=True)
