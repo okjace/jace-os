@@ -117,7 +117,12 @@
     .isl .ws { width: 1.6em; height: 1.4em; border-radius: .45em; display: grid; place-items: center; color: #8b919c; font-size: .9em; }
     .isl .ws.on { background: #3ddc84; color: #0c1410; }
     .isl .task { width: 1.5em; height: 1.5em; border-radius: .4em; }
-    .bar .mid { margin: 0 auto; font-weight: 600; }
+    .bar .mid { margin-left: auto; font-weight: 600; }
+    .bar .np { margin-right: auto; color: #c7cbd1; }
+    .isl.acct { padding-left: .35em; }
+    .avs { width: 1.6em; height: 1.6em; border-radius: 50%; display: grid; place-items: center;
+           background: linear-gradient(135deg, #3ddc84, #1f9d5a); font-size: .85em; }
+    @media (max-width: 640px) { .bar .np { display: none; } .bar .mid { margin: 0 auto; } }
     .win {
       position: absolute; background: #1c1f26; border: 1px solid #2f3540; border-radius: .9em;
       box-shadow: 0 1.5em 3em rgba(0,0,0,.45); overflow: hidden;
@@ -156,6 +161,7 @@
       background: var(--glow); color: var(--accent);
     }
     .icon svg { width: 22px; height: 22px; }
+    .icon.emoji { font-size: 22px; background: var(--glow); }
 
     .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
     .app-card { display: flex; gap: 14px; align-items: flex-start; }
@@ -229,6 +235,7 @@
       <p class="lead">Arch Linux, made friendly. Windows that work the way you expect, a clean top bar, your Jace apps and account built in, and updates that install themselves.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/okjace/jace-os/releases/latest">Download the ISO</a>
+        <a class="btn" href="https://jace-store-deb.vercel.app/project/jace-os">Get it on Jace Store</a>
         <a class="btn" href="https://github.com/okjace/jace-os">View the source</a>
       </div>
       <p class="small">Try it from a USB stick or install it · Free and open source (MIT) · 64-bit PCs</p>
@@ -238,9 +245,11 @@
           <div class="isl start">J</div>
           <div class="isl"><span class="ws on">1</span><span class="ws">2</span><span class="ws">3</span></div>
           <div class="isl"><span class="task" style="background:#3ddc84"></span><span class="task" style="background:#5b8def"></span><span class="task" style="background:#f5a623"></span></div>
-          <div class="isl mid">Fri Oct 30&nbsp;&nbsp;15:42</div>
+          <div class="isl mid">Wed Nov 04&nbsp;&nbsp;3:42 PM</div>
+          <div class="isl np">⏸&nbsp; Midnight City · M83</div>
+          <div class="isl">🔔</div>
           <div class="isl">🔊 64%&nbsp;&nbsp;📶</div>
-          <div class="isl">Jace</div>
+          <div class="isl acct"><span class="avs">🐸</span>Jace</div>
           <div class="isl">⏻</div>
         </div>
         <div class="snap"></div>
@@ -269,7 +278,7 @@
             <div class="app"><div class="ico" style="background:#c7cbd1">⚙</div>Settings</div>
             <div class="app"><div class="ico" style="background:#ff8a65">🖼</div>Photos</div>
           </div>
-          <div class="foot"><div class="av">J</div>Jace<span style="margin-left:auto;color:#8b919c">⏻</span></div>
+          <div class="foot"><div class="av">🐸</div>Jace<span style="margin-left:auto;color:#8b919c">⏻</span></div>
         </div>
       </div>
     </div>
@@ -281,47 +290,105 @@
       <p class="sub">If you've used Windows, you already know how to use Jace OS. If you've used Arch, you'll find everything you love underneath.</p>
       <div class="cards">
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M12 9v11"/></svg></div>
+          <div class="icon emoji">🪟</div>
           <h3>Windows-style windows</h3>
           <p>Minimize, maximize and close on the right. Drag to the top to maximize, to a side to snap. Alt+Tab, Win+arrows and Alt+F4 all work.</p>
         </div>
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+          <div class="icon emoji">🔲</div>
           <h3>A start menu on the Windows key</h3>
-          <p>Tap the Windows key: pinned apps, every app, and search as you type. Make it yours in Settings: where it opens, its size, layout and what's pinned.</p>
+          <p>Pinned apps, every app and search as you type. Pin, hide, rename or add apps and websites, and choose where it opens and how big it is.</p>
         </div>
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="2.5"/><path d="M6 14h12M6 18h8"/></svg></div>
-          <h3>A top bar inspired by niri</h3>
-          <p>Floating rounded islands: start button, desktops and open windows on the left, the clock in the middle, status and your Jace account on the right.</p>
+          <div class="icon emoji">🏝️</div>
+          <h3>A top bar you can make your own</h3>
+          <p>Rounded islands inspired by niri. Turn modules on and off (Now Playing, weather, processor, Do not disturb, Keep awake…), move it to the bottom, pick a 12 or 24-hour clock.</p>
         </div>
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div>
+          <div class="icon emoji">⚙️</div>
           <h3>One Settings app for everything</h3>
-          <p>Wi-Fi, Bluetooth, displays, sound, virus protection, wallpaper, start menu, every keyboard shortcut, keyboard, power, date and time, default apps, users and updates, all in one place.</p>
+          <p>Wi-Fi, Bluetooth, displays, sound, wallpaper, mouse, keyboard shortcuts, power, users, apps, updates and virus protection, all in one place.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="little-things" style="background:var(--panel);border-block:1px solid var(--line)">
+    <div class="wrap">
+      <h2>The little things</h2>
+      <p class="sub">Small touches that make it nice to use every day.</p>
+      <div class="cards">
+        <div class="card">
+          <div class="icon emoji">📋</div>
+          <h3>Clipboard history</h3>
+          <p>Press Win+V for everything you copied, pictures included. Search it, pin things to keep them, and click to paste.</p>
         </div>
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
-          <h3>Secure without trying</h3>
-          <p>Linux, security fixes and your apps update by themselves in the background. You never have to open a terminal.</p>
-        </div>
-        <div class="card" id="security">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><circle cx="12" cy="11" r="3"/><path d="M12 14v3"/></svg></div>
-          <h3>Built-in virus protection</h3>
-          <p>Real-time protection scans downloads and new files as they arrive and quarantines threats. There's also a daily scan, plus quick and full scans in Settings.</p>
+          <div class="icon emoji">📅</div>
+          <h3>Calendar on the clock</h3>
+          <p>Click the clock (or press Win+N) for a calendar drop-down.</p>
         </div>
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2l-2 5v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7l-2-5z"/><path d="M4 7h16M16 11a4 4 0 0 1-8 0"/></svg></div>
+          <div class="icon emoji">🔒</div>
+          <h3>A lock screen worth looking at</h3>
+          <p>Your blurred wallpaper, a big clock, your picture and name, media controls and power buttons.</p>
+        </div>
+        <div class="card">
+          <div class="icon emoji">🙂</div>
+          <h3>Face unlock</h3>
+          <p>Sign in and unlock by looking at your camera, like Windows Hello. Best with an infrared camera; your password always works too.</p>
+        </div>
+        <div class="card">
+          <div class="icon emoji">🐸</div>
+          <h3>Your picture, your way</h3>
+          <p>Pick a ready-made picture, build your own from colours and an emoji or your initials, or use a photo. Signed in to Jace? Your Jace name and photo come along.</p>
+        </div>
+        <div class="card">
+          <div class="icon emoji">⌨️</div>
+          <h3>Every shortcut is yours</h3>
+          <p>Change or turn off any keyboard shortcut, or add your own that open apps or run commands.</p>
+        </div>
+        <div class="card">
+          <div class="icon emoji">🖱️</div>
+          <h3>Mouse and pointer</h3>
+          <p>Pointer speed and acceleration, left-handed buttons, scroll direction and speed, and pointer themes and sizes.</p>
+        </div>
+        <div class="card">
+          <div class="icon emoji">🛍️</div>
           <h3>Get apps right in Settings</h3>
-          <p>Search Jace Store, Flathub and the Arch repositories from Settings → Apps and install with one click. They show up in Jace Store's My apps too.</p>
+          <p>Search Jace Store, Flathub and the Arch repositories and install with one click. The AUR works too: yay is included.</p>
         </div>
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg></div>
+          <div class="icon emoji">📦</div>
           <h3>AppImages just work</h3>
-          <p>Double-click an AppImage to open it. Right-click it and choose Install to add it to the start menu, with its own icon.</p>
+          <p>Double-click one to open it. Right-click it and choose Install to add it to the start menu with its own icon.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="security" style="padding-top:0">
+    <div class="wrap">
+      <h2>Safe without trying</h2>
+      <p class="sub">You never have to open a terminal to stay protected.</p>
+      <div class="cards">
+        <div class="card">
+          <div class="icon emoji">🛡️</div>
+          <h3>Updates install themselves</h3>
+          <p>Linux, security fixes, the Jace apps and Flatpaks update in the background. Jace OS tells you if one needs a restart or a sign-out.</p>
         </div>
         <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
+          <div class="icon emoji">🦠</div>
+          <h3>Built-in virus protection</h3>
+          <p>Real-time protection scans downloads and new files and quarantines threats, plus a daily scan and quick and full scans in Settings.</p>
+        </div>
+        <div class="card">
+          <div class="icon emoji">🧑‍🤝‍🧑</div>
+          <h3>Accounts for everyone</h3>
+          <p>Add people with their own password and picture, and remove accounts you don't need any more.</p>
+        </div>
+        <div class="card">
+          <div class="icon emoji">🌊</div>
           <h3>Wayland all the way</h3>
           <p>A modern Wayland desktop (labwc) with screen sharing, fractional scaling and portals, and XWayland for older apps.</p>
         </div>
@@ -344,7 +411,7 @@
           <img src="img/logo.svg" alt="" width="48" height="48">
           <div style="flex:1;min-width:240px">
             <h3 style="margin:0 0 4px">Sign in with Jace</h3>
-            <p>Your Jace account lives on the top bar and in Settings. It shows your name and picture, and signs you in to Jace Social, Jace Store and Jace Launcher.</p>
+            <p>Sign in once in Settings and your Jace name and photo show on the top bar, the login screen and the lock screen. Jace Browser and the Jace apps use the same account.</p>
           </div>
           <a class="btn" href="https://jaceo.vercel.app">What's Jace?</a>
         </div>
@@ -362,6 +429,7 @@
           <li><span>New versions of Jace Launcher, Jace Social, Jace Store and Jace Browser within hours of their release</span></li>
           <li><span>Flatpak apps and virus signatures too</span></li>
           <li><span>The two newest versions of everything stay cached, so a bad update can be undone</span></li>
+          <li><span>It tells you when an update needs a restart or a sign-out, with a button to do it</span></li>
           <li><span>See and install updates yourself any time in Settings → Updates</span></li>
         </ul>
       </div>
@@ -388,6 +456,9 @@
         <tr><td><kbd>Win</kbd> + <kbd>E</kbd> · <kbd>Win</kbd> + <kbd>I</kbd> · <kbd>Win</kbd> + <kbd>L</kbd></td><td>Files · Settings · Lock</td></tr>
         <tr><td><kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td><td>Screenshot part of the screen</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd></td><td>System Monitor (Task Manager)</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>V</kbd></td><td>Clipboard history</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>N</kbd></td><td>Calendar</td></tr>
+        <tr><td><kbd>Win</kbd> + <kbd>.</kbd></td><td>Emoji and symbols</td></tr>
       </table>
     </div>
   </section>
@@ -397,7 +468,7 @@
       <h2>Install Jace OS</h2>
       <p class="sub">You need a USB stick (8 GB or bigger) and an internet connection.</p>
       <ol class="steps">
-        <li><div><h3>Download the ISO</h3><p>Get the newest <a href="https://github.com/okjace/jace-os/releases/latest">jace-os ISO from GitHub</a>. If it comes in parts, join them first (the release notes show how).</p></div></li>
+        <li><div><h3>Download the ISO</h3><p>Get the newest ISO from <a href="https://github.com/okjace/jace-os/releases/latest">GitHub</a> or <a href="https://jace-store-deb.vercel.app/project/jace-os">Jace Store</a>. If it comes in parts, join them first (the release notes show how).</p></div></li>
         <li><div><h3>Write it to a USB stick</h3><p>Use <a href="https://etcher.balena.io">balenaEtcher</a> or <a href="https://rufus.ie">Rufus</a> on Windows or macOS, or <code>dd</code> on Linux. This erases the stick.</p></div></li>
         <li><div><h3>Start your computer from the USB stick</h3><p>Open your computer's boot menu (often F12, F11 or Esc while it starts) and pick the USB stick. Choose <b>Try Jace OS</b> to use it straight from the USB stick without changing anything, or <b>Install Jace OS</b>.</p></div></li>
         <li><div><h3>Install it</h3><p>The installer asks for your language, keyboard, the disk to use (with optional encryption), your name and a password. Then it installs Jace OS with the newest Jace apps and Jace Browser. Want to keep Windows too? Use Advanced install.</p></div></li>
