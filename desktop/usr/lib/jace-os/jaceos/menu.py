@@ -39,7 +39,7 @@ DEFAULTS = {
     "start_on_all_apps": False,
     "opacity": 0.94,
     "pinned": [
-        "zen.desktop",
+        "jace-browser.desktop",
         "jace-launcher.desktop",
         "jace-social.desktop",
         "jace-store.desktop",
@@ -75,7 +75,7 @@ def load_config() -> dict:
         pass
     # Pins of apps Jace OS replaced move to the new app once the old one is gone.
     replaced = {"thunar.desktop": "org.gnome.Nautilus.desktop", "foot.desktop": "org.gnome.Ptyxis.desktop",
-                "mpv.desktop": "org.gnome.Showtime.desktop"}
+                "mpv.desktop": "org.gnome.Showtime.desktop", "zen.desktop": "jace-browser.desktop"}
     pinned = []
     for app_id in cfg.get("pinned", []):
         if app_id in replaced and app_by_id(app_id) is None:

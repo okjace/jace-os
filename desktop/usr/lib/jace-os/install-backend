@@ -106,7 +106,7 @@ ucode=()
 grep -q GenuineIntel /proc/cpuinfo && ucode=(intel-ucode)
 grep -q AuthenticAMD /proc/cpuinfo && ucode=(amd-ucode)
 packages=(base linux linux-firmware sof-firmware "${ucode[@]}" mkinitcpio sudo nano
-          jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin yay-bin
+          jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-browser-bin yay-bin
           mesa vulkan-radeon vulkan-intel vulkan-nouveau intel-media-driver libva-mesa-driver
           btrfs-progs dosfstools exfatprogs ntfs-3g)
 [ "$encrypt" = true ] && packages+=(cryptsetup)

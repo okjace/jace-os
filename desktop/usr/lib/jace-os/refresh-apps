@@ -1,5 +1,6 @@
 #!/bin/bash
-# Makes sure the Jace apps, Zen Browser and yay are the newest releases on GitHub, even
+# Makes sure the Jace apps, Jace Browser and yay (and Zen Browser, if you kept it) are the
+# newest releases on GitHub, even
 # if the Jace OS package repository hasn't caught up yet: anything newer is built
 # from the Jace OS PKGBUILD (it just unpacks the official release) and installed.
 # Run as root by the installer and by jace-update.
@@ -21,6 +22,8 @@ refresh() { # package github-repo tag-prefix
   ver=${tag#"${3:-}"}
   ver=${ver//-/_}
   have=$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}')
+  # Only updates what's installed: removed apps (like Zen Browser) stay removed.
+  [ -n "$have" ] || return 0
   # Already this version (or newer)?
   if [ -n "$have" ] && [ "$(vercmp "${have%-*}" "$ver")" -ge 0 ]; then
     return 0
@@ -45,6 +48,7 @@ refresh() { # package github-repo tag-prefix
 refresh jace-launcher-bin okjace/jace-launcher v
 refresh jace-social-bin okjace/jace-social app-v
 refresh jace-store-bin okjace/jace-store desktop-v
+refresh jace-browser-bin okjace/jace-browser v
 refresh zen-browser-bin zen-browser/desktop
 refresh yay-bin Jguer/yay v
 exit 0

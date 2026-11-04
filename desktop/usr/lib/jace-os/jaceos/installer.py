@@ -189,7 +189,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         for icon, title, sub in (
             ("drive-harddisk-symbolic", "Erases the disk you choose", "Back up anything you want to keep first."),
             ("security-high-symbolic", "Optional disk encryption", "Keeps your files safe if the computer is lost."),
-            ("view-app-grid-symbolic", "Everything's included", "Jace Launcher, Jace Social, Jace Store, Zen Browser, "
+            ("view-app-grid-symbolic", "Everything's included", "Jace Launcher, Jace Social, Jace Store, Jace Browser, "
                                                                "virus protection and automatic updates."),
         ):
             row = Adw.ActionRow(title=title, subtitle=sub)

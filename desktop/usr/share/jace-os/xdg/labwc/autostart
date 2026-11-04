@@ -32,3 +32,6 @@ conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os"
 
 # The welcome app (first login, and every login on the live USB).
 jace-welcome --autostart >/dev/null 2>&1 &
+
+# One-time changes after an update (Jace Browser became the default browser).
+jace-migrate >/dev/null 2>&1 &

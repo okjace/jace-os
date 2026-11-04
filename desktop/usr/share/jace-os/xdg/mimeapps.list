@@ -1,9 +1,9 @@
 # Jace OS default apps (change them in Settings → Apps).
 [Default Applications]
-x-scheme-handler/http=zen.desktop
-x-scheme-handler/https=zen.desktop
-text/html=zen.desktop
-application/xhtml+xml=zen.desktop
+x-scheme-handler/http=jace-browser.desktop
+x-scheme-handler/https=jace-browser.desktop
+text/html=jace-browser.desktop
+application/xhtml+xml=jace-browser.desktop
 application/pdf=org.gnome.Papers.desktop
 inode/directory=org.gnome.Nautilus.desktop
 text/plain=org.gnome.TextEditor.desktop

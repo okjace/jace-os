@@ -44,6 +44,19 @@ MODULES = {
 }
 ORDER = list(MODULES)
 
+# Window app id -> .desktop entry (without .desktop) for the taskbar's icons.
+APP_ID_ENTRIES = {
+    "jace": "jace-browser",
+    "io.github.jacelauncher.JaceLauncher": "jace-launcher",
+    "io.github.jace_deb.JaceSocial": "jace-social",
+    "io.github.okjace.JaceStore": "jace-store",
+    "org.jaceos.Settings": "jace-settings",
+    "org.jaceos.Welcome": "jace-welcome",
+    "org.jaceos.Installer": "jace-welcome",
+    "org.jaceos.Migrate": "jace-browser",
+    "zen": "zen",
+}
+
 DEFAULTS = {
     "position": "top",
     "size": "normal",
@@ -96,7 +109,10 @@ def waybar_config(cfg: dict) -> dict:
         "workspaces": ("ext/workspaces", {"format": "{name}", "on-click": "activate", "sort-by-id": True}),
         "taskbar": ("wlr/taskbar", {"format": "{icon}", "icon-size": 18, "tooltip-format": "{title}",
                                     "on-click": "minimize-raise", "on-click-middle": "close",
-                                    "on-click-right": "maximize", "ignore-list": ["Waybar"]}),
+                                    "on-click-right": "maximize", "ignore-list": ["Waybar"],
+                                    # Exact entries for apps whose window id isn't their .desktop name, so the
+                                    # taskbar never guesses (and shows another app's icon).
+                                    "app_ids-mapping": APP_ID_ENTRIES}),
         "clock": ("clock", {"format": fmt, "interval": interval, "on-click": "jace-calendar",
                             "tooltip-format": "<tt>{calendar}</tt>",
                             "calendar": {"mode": "month",

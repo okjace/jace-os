@@ -1,5 +1,5 @@
 """Finding updates for Jace OS: Arch packages (Linux and security fixes), the Jace
-apps, Zen Browser and Flatpaks. Installing them is /usr/bin/jace-update (root).
+apps, Jace Browser and Flatpaks. Installing them is /usr/bin/jace-update (root).
 
   jace-updates            list what can be updated
   jace-updates --json     the same, for scripts
@@ -55,7 +55,7 @@ def _notify_finish(kind: str):
               f'-A now="{button}" -A later="Later" "{title}" "{body}")" = now ] && {action}')
     subprocess.Popen(["sh", "-c", script], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-EXTRA_APPS = {"zen-browser-bin": "Zen Browser", "yay-bin": "yay"}
+EXTRA_APPS = {"jace-browser-bin": "Jace Browser", "zen-browser-bin": "Zen Browser", "yay-bin": "yay"}
 
 
 def pacman_updates() -> list[dict]:
@@ -94,7 +94,9 @@ def check() -> dict:
     system = pacman_updates()
     by_name = {u["name"]: u for u in system}
     apps = []
-    extra = [(p, "", n, "AUR helper" if p == "yay-bin" else "Web browser") for p, n in EXTRA_APPS.items()]
+    # Extra apps are listed only when installed (Zen Browser stays gone once removed).
+    extra = [(p, "jace-browser" if p == "jace-browser-bin" else "", n, "AUR helper" if p == "yay-bin" else "Web browser")
+             for p, n in EXTRA_APPS.items() if installed_version(p)]
     for pkg, cmd, name, about in JACE_APPS + extra:
         cur = installed_version(pkg)
         upd = by_name.pop(pkg, None)

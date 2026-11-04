@@ -405,7 +405,7 @@ class SettingsWindow(Adw.ApplicationWindow):
         spinner = Adw.Spinner(halign=Gtk.Align.CENTER, width_request=32, height_request=32) \
             if hasattr(Adw, "Spinner") else Gtk.Spinner(spinning=True, halign=Gtk.Align.CENTER)
         page.add(status_header("software-update-available-symbolic", "Checking for updates…",
-                               "Jace OS, the Jace apps, Zen Browser and Flatpaks", spinner))
+                               "Jace OS, the Jace apps, Jace Browser and Flatpaks", spinner))
         background(updates.check, self._show_updates)
         return page
 
@@ -451,7 +451,7 @@ class SettingsWindow(Adw.ApplicationWindow):
         g.add(self.update_log_box)
 
         apps = Adw.PreferencesGroup(title="Jace apps", description="Jace Launcher, Jace Social, Jace Store, "
-                                                                   "Zen Browser and yay update through Jace OS.")
+                                                                   "Jace Browser and yay update through Jace OS.")
         for a in result["apps"]:
             row = plain_row(title=a["name"], subtitle=(
                 f"{a['installed']}  →  {a['new']}" if a["update"] else
@@ -1620,7 +1620,7 @@ class SettingsWindow(Adw.ApplicationWindow):
         if builtin is None:
             lb = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
             name = Adw.EntryRow(title="Name", text=custom["title"] if custom else "")
-            cmd = Adw.EntryRow(title="Command to run (for example: zen-browser)", text=custom["command"] if custom else "")
+            cmd = Adw.EntryRow(title="Command to run (for example: jace-browser)", text=custom["command"] if custom else "")
             lb.append(name)
             lb.append(cmd)
             box.append(lb)

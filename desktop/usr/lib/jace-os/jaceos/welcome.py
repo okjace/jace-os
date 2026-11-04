@@ -121,8 +121,8 @@ class WelcomeWindow(Adw.ApplicationWindow):
     def page_apps(self):
         grid = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=4, min_children_per_line=2,
                            column_spacing=12, row_spacing=12, halign=Gtk.Align.CENTER, homogeneous=True)
-        for _pkg, cmd, name, _about in JACE_APPS + [("zen-browser-bin", "zen-browser", "Zen Browser", "")]:
-            icon = "zen" if cmd == "zen-browser" else cmd
+        for _pkg, cmd, name, _about in JACE_APPS + [("jace-browser-bin", "jace-browser", "Jace Browser", "")]:
+            icon = cmd
             b = Gtk.Button(css_classes=["flat", "jw-app"])
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
             img = Gtk.Image(icon_name=icon, pixel_size=64)
@@ -132,7 +132,7 @@ class WelcomeWindow(Adw.ApplicationWindow):
             b.connect("clicked", lambda _b, c=cmd: spawn([c]))
             grid.append(b)
         return self.status("Your apps are ready",
-                           "Jace Launcher, Jace Social, Jace Store and Zen Browser come with Jace OS, "
+                           "Jace Launcher, Jace Social, Jace Store and Jace Browser come with Jace OS, "
                            "and stay up to date on their own.", grid, icon="view-app-grid-symbolic")
 
     def page_tips(self):

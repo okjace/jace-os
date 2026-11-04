@@ -3,7 +3,7 @@
 #
 # Runs:
 #   - after the Packages workflow finishes for a push to main (so the ISO has that change)
-#   - every Monday, to pick up a week of Jace app, Zen Browser and Arch updates
+#   - every Monday, to pick up a week of Jace app, Jace Browser and Arch updates
 #   - when you push a tag like v1.2.0 (that becomes the version)
 #   - by hand (Actions → ISO → Run workflow)
 # Other releases are versioned by date: 2026.10.30, then 2026.10.30.2 the same day.
@@ -127,7 +127,7 @@ jobs:
           computer from it, and pick **Try Jace OS** or **Install Jace OS**.
 
           $join
-          Includes the newest Jace Launcher, Jace Social, Jace Store and Zen Browser, and installs
+          Includes the newest Jace Launcher, Jace Social, Jace Store and Jace Browser, and installs
           get the newest versions again while installing.
 
           Full instructions: https://okjace.github.io/jace-os/#install

@@ -4,7 +4,7 @@
 
 **Website:** https://okjace.github.io/jace-os/ · **Download:** [latest release](https://github.com/okjace/jace-os/releases/latest)
 
-An Arch-based Linux that works like you expect: windows behave like they do on Windows, a niri-style top bar, a start menu on the Windows key, one Settings app for everything, and updates that install themselves. Jace Launcher, Jace Social, Jace Store, Zen Browser and your Jace account are built in.
+An Arch-based Linux that works like you expect: windows behave like they do on Windows, a niri-style top bar, a start menu on the Windows key, one Settings app for everything, and updates that install themselves. Jace Launcher, Jace Social, Jace Store, Jace Browser and your Jace account are built in.
 
 ## Features
 
@@ -19,8 +19,8 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **Clipboard manager**: Win+V shows everything you copied, pictures included. Search it, pin things to keep them, and click to paste.
 - **A top bar you can change**: Settings → Top bar turns modules on and off (Now Playing, weather, processor, memory, Do not disturb, Keep awake and more), moves it to the bottom, and sets the clock (12 or 24 hours, seconds, date). Click the clock (or Win+N) for the calendar.
 - **Face unlock**: Settings → Face unlock sets up Howdy, the Linux Windows Hello, for the lock screen, sign-in and password prompts. Best with an infrared camera.
-- **Automatic updates**: `jace-update.timer` installs Arch updates (the Linux kernel and security fixes), new Jace app and Zen Browser releases, and Flatpak updates every few hours while plugged in. You can see and install them yourself in Settings → Updates.
-- **The Jace apps**: Jace Launcher, Jace Social and Jace Store come preinstalled, along with Zen Browser as the default browser and [yay](https://github.com/Jguer/yay) for the AUR (Jace Store's AUR source uses it). The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
+- **Automatic updates**: `jace-update.timer` installs Arch updates (the Linux kernel and security fixes), new Jace app and Jace Browser releases, and Flatpak updates every few hours while plugged in. You can see and install them yourself in Settings → Updates.
+- **The Jace apps**: Jace Launcher, Jace Social and Jace Store come preinstalled, along with [Jace Browser](https://github.com/okjace/jace-browser) as the default browser and [yay](https://github.com/Jguer/yay) for the AUR (Jace Store's AUR source uses it). The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
 - **Sign in with Jace**: the account page in Settings and the account button on the top bar sign in to [Jace](https://jaceo.vercel.app) (OAuth 2.0 with PKCE). Your Jace display name and photo become this computer's account name and picture (you can turn that off), and the top bar's corner shows your picture and name right away. Not signed in? It shows your account on this computer. Jace apps can ask Jace OS to sign them in too (`jace-account --token-for`).
 - **Users**: pick a ready-made picture, build your own (colours and an emoji or your initials) or use a photo; change your name; add people with a password, set passwords, and delete accounts in Settings → Users.
 - **Lock screen**: gtklock with your blurred wallpaper, a big clock, your picture and name, media controls and power buttons. Face unlock works on it too.
@@ -59,7 +59,7 @@ Change any of these, turn them off, or add your own in Settings → Keyboard sho
    - the disk to install on (it's erased), with optional encryption
    - your name, username, computer name and password
 
-   Then it installs Jace OS, with the newest Jace apps and Zen Browser, in 10 to 20 minutes. You need an internet connection.
+   Then it installs Jace OS, with the newest Jace apps and Jace Browser, in 10 to 20 minutes. You need an internet connection.
 4. To keep Windows or another system alongside, or to pick your own partitions, use **Advanced install** on the installer's first page. It opens archinstall with the Jace OS preset.
 
 ### Already on Arch
@@ -72,7 +72,7 @@ Server = https://github.com/okjace/jace-os/releases/download/repo
 ```
 
 ```bash
-sudo pacman -Syu jace-os jace-launcher-bin jace-social-bin jace-store-bin zen-browser-bin yay-bin
+sudo pacman -Syu jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-browser-bin yay-bin
 sudo /usr/lib/jace-os/enable-splash
 ```
 
@@ -84,7 +84,7 @@ Then choose **Jace OS** on the login screen.
 |---|---|
 | `desktop/` | Everything the `jace-os` package installs, laid out like `/`: the labwc, Waybar, mako and fuzzel configs (`usr/share/jace-os/xdg`), the Jace OS apps (`usr/lib/jace-os/jaceos`), scripts (`usr/bin`), the Plymouth theme, the login screen, wallpapers, the update timer and the installer preset. |
 | `desktop/usr/lib/jace-os/jaceos/` | The Python + GTK 4 + libadwaita apps: `settings.py`, `menu.py` (start menu), `welcome.py`, `installer.py` (with the `install-backend` script), `account.py` (Sign in with Jace), `updates.py`, `antivirus.py`, `store.py` (Jace Store, Flathub and Arch in Settings) and `appimage.py`. |
-| `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin`, `zen-browser-bin` and `yay-bin`, which unpack each app's official release. |
+| `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin`, `jace-browser-bin`, `zen-browser-bin` (kept for computers that still have it) and `yay-bin`, which unpack each app's official release. |
 | `archiso/` | The live USB profile (packages, live user and auto-login). `build.sh` combines it with archiso's `releng` boot setup. |
 | `site/` | The website on GitHub Pages. |
 | `tools/build-packages.sh` | Builds the package repository. |
@@ -101,7 +101,7 @@ sudo ./build.sh                  # the ISO into out/
 
 GitHub Actions does both:
 
-- **Packages** (`.github/workflows/packages.yml`) runs every hour and on every push. It only builds packages whose version changed (a new Jace app or Zen Browser release, or a Jace OS commit) and publishes the pacman repository as the `repo` release. An app repository can also trigger it right away with a `repository_dispatch` of type `app-released`.
+- **Packages** (`.github/workflows/packages.yml`) runs every hour and on every push. It only builds packages whose version changed (a new Jace app or Jace Browser release, or a Jace OS commit) and publishes the pacman repository as the `repo` release. An app repository can also trigger it right away with a `repository_dispatch` of type `app-released`.
 - **ISO** (`.github/workflows/iso.yml`) builds the ISO after every change to Jace OS (once Packages has published it), every Monday, when you push a `v*` tag, or by hand. When the build works, it publishes a GitHub release (versioned by date, like `v2026.10.30`, or by your tag), then publishes that release on [Jace Store](https://jace-store-deb.vercel.app/project/jace-os) as links to the GitHub downloads (`tools/publish-store.py`, needs the `JACE_STORE_TOKEN` secret).
 - **Website** (`.github/workflows/pages.yml`) publishes `site/`.
 
@@ -120,4 +120,4 @@ JACE_OS_ROOT="$PWD/desktop" desktop/usr/bin/jace-menu
 
 ## License
 
-MIT. Jace OS is based on Arch Linux and isn't affiliated with Arch Linux. Zen Browser, labwc, Waybar and the other bundled software keep their own licenses.
+MIT. Jace OS is based on Arch Linux and isn't affiliated with Arch Linux. labwc, Waybar and the other bundled software keep their own licenses.

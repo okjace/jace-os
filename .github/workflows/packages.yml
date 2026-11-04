@@ -2,7 +2,7 @@
 #   Server = https://github.com/okjace/jace-os/releases/download/repo
 # Runs when Jace OS changes, every hour (a run with nothing new takes seconds), and
 # right away when an app repository sends a "app-released" repository_dispatch, so new
-# Jace app and Zen Browser releases reach installed systems through automatic updates.
+# Jace app and Jace Browser releases reach installed systems through automatic updates.
 name: Packages
 
 on:

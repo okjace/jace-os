@@ -435,5 +435,5 @@ def seed_my_apps(app_ids: list[str]) -> int:
 def main():
     """jace-my-apps: put the Jace OS apps in Jace Store's My apps (run at sign-in)."""
     from jaceos import menu
-    ids = list(dict.fromkeys(menu.DEFAULTS["pinned"] + ["jace.desktop", "jace-welcome.desktop"]))
+    ids = list(dict.fromkeys(menu.DEFAULTS["pinned"] + ["jace-web.desktop", "jace-welcome.desktop"]))
     seed_my_apps(ids)

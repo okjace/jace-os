@@ -2,10 +2,11 @@
 # Installs updates for Jace OS. Runs as root (the update timer, or pkexec from Settings).
 #
 #   jace-update               update everything: Arch packages (Linux kernel and
-#                             security fixes included), Jace apps, Zen Browser, Flatpaks
+#                             security fixes included), Jace apps, Jace Browser, Flatpaks
 #   jace-update --auto        the same, run by jace-update.timer without asking anyone
 #   jace-update <package>...  update just these packages (e.g. a Jace app)
 #   jace-update --enable-auto / --disable-auto   turn automatic updates on or off
+#   jace-update --remove <package>...  remove apps Jace OS replaced (Zen Browser, Thunar, foot, mpv)
 set -uo pipefail
 
 log=/var/log/jace-update.log
@@ -21,6 +22,18 @@ fi
 case "${1:-}" in
   --enable-auto)  systemctl enable --now jace-update.timer; exit ;;
   --disable-auto) systemctl disable --now jace-update.timer; exit ;;
+  --remove)
+    # Removes apps Jace OS has replaced (only these, so this can't remove anything else).
+    shift
+    allowed=" zen-browser-bin thunar thunar-volman thunar-archive-plugin tumbler foot mpv "
+    remove=()
+    for p in "$@"; do
+      case "$allowed" in *" $p "*) pacman -Q "$p" >/dev/null 2>&1 && remove+=("$p") ;; *) echo "Not removable here: $p" >&2; exit 2 ;; esac
+    done
+    [ ${#remove[@]} -eq 0 ] && exit 0
+    say "Removing: ${remove[*]}"
+    pacman -Rns --noconfirm "${remove[@]}" >>"$log" 2>&1 || pacman -R --noconfirm "${remove[@]}" >>"$log" 2>&1
+    exit ;;
 esac
 
 auto=no
@@ -39,7 +52,7 @@ status=0
 
 if [ $# -gt 0 ]; then
   say "Updating: $*"
-  # Jace apps and Zen Browser are self-contained, so updating just them is safe.
+  # The Jace apps and browsers are self-contained, so updating just them is safe.
   pacman -Sy --noconfirm >>"$log" 2>&1 &&
     pacman -S --needed --noconfirm "$@" >>"$log" 2>&1 || status=$?
 else
@@ -49,7 +62,7 @@ else
   if [ $status -eq 0 ]; then
     pacman -Su --noconfirm >>"$log" 2>&1 || status=$?
   fi
-  # New Jace app and Zen Browser releases, even before the Jace OS repository has them.
+  # New Jace app and Jace Browser releases, even before the Jace OS repository has them.
   /usr/lib/jace-os/refresh-apps >>"$log" 2>&1 || say "Couldn't check GitHub for new app releases (continuing)."
   if command -v flatpak >/dev/null; then
     flatpak update -y --noninteractive >>"$log" 2>&1 || say "Flatpak update failed (continuing)."

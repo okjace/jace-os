@@ -9,3 +9,4 @@ Type=Application
 Categories=Settings;System;
 Keywords=preferences;settings;control;panel;wifi;network;bluetooth;display;sound;updates;wallpaper;start;menu;
 StartupNotify=true
+StartupWMClass=org.jaceos.Settings
