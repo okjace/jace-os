@@ -484,6 +484,9 @@ class SettingsWindow(Adw.ApplicationWindow):
 
         if result["flatpak"]:
             fg = Adw.PreferencesGroup(title="Flatpak apps")
+            fb = Gtk.Button(label="Update", valign=Gtk.Align.CENTER, css_classes=["pill"])
+            fb.connect("clicked", lambda *_: self._run_update(["--flatpak"]))
+            fg.set_header_suffix(fb)
             for u in result["flatpak"]:
                 fg.add(plain_row(title=u["title"], subtitle=u["new"] or u["name"]))
             page.add(fg)

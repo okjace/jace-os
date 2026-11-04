@@ -133,7 +133,8 @@ def _read(p: Path) -> str:
 
 
 def install(packages: list[str] | None = None) -> subprocess.Popen:
-    """Starts jace-update (asks for a password unless you're an administrator). Returns the process."""
+    """Starts jace-update for these packages, or ["--flatpak"] for just the Flatpaks (asks for a
+    password unless you're an administrator). Returns the process."""
     return subprocess.Popen(["pkexec", "/usr/bin/jace-update", *(packages or [])],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 

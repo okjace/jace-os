@@ -7,6 +7,7 @@
 #   jace-update <package>...  update just these packages (e.g. a Jace app)
 #   jace-update --enable-auto / --disable-auto   turn automatic updates on or off
 #   jace-update --remove <package>...  remove apps Jace OS replaced (Zen Browser, Thunar, foot, mpv)
+#   jace-update --flatpak     update just the Flatpaks (everyone's)
 set -uo pipefail
 
 log=/var/log/jace-update.log
@@ -19,6 +20,22 @@ if [ "$(id -u)" -ne 0 ]; then
   exec pkexec "$0" "$@"
 fi
 
+# Flatpaks: the system-wide ones, then each person's own (Jace Store and Settings install
+# Flatpaks per user, and root's "flatpak update" never touches those).
+update_flatpaks() {
+  command -v flatpak >/dev/null || return 0
+  say "Updating Flatpaks"
+  flatpak update --system -y --noninteractive >>"$log" 2>&1 || say "System Flatpak update failed (continuing)."
+  local name uid home
+  while IFS=: read -r name _ uid _ _ home _; do
+    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$home/.local/share/flatpak/repo" ] || continue
+    say "Updating $name's Flatpaks"
+    runuser -u "$name" -- env -i HOME="$home" USER="$name" PATH=/usr/bin \
+      XDG_RUNTIME_DIR="/run/user/$uid" flatpak update --user -y --noninteractive >>"$log" 2>&1 ||
+      say "$name's Flatpak update failed (continuing)."
+  done < /etc/passwd
+}
+
 case "${1:-}" in
   --enable-auto)  systemctl enable --now jace-update.timer; exit ;;
   --disable-auto) systemctl disable --now jace-update.timer; exit ;;
@@ -30,9 +47,22 @@ case "${1:-}" in
     for p in "$@"; do
       case "$allowed" in *" $p "*) pacman -Q "$p" >/dev/null 2>&1 && remove+=("$p") ;; *) echo "Not removable here: $p" >&2; exit 2 ;; esac
     done
+    # Keep any that another installed package still needs (e.g. an app using mpv's libmpv).
+    keep=()
+    for p in "${remove[@]}"; do
+      for user in $(LC_ALL=C pacman -Qi "$p" | sed -n 's/^Required By *: //p'); do
+        [ "$user" = None ] && continue
+        case " ${remove[*]} " in *" $user "*) ;; *) keep+=("$p"); say "Keeping $p: $user needs it."; break ;; esac
+      done
+    done
+    remove=($(printf '%s\n' "${remove[@]}" | grep -vxF -f <(printf '%s\n' "${keep[@]}" "")))
     [ ${#remove[@]} -eq 0 ] && exit 0
     say "Removing: ${remove[*]}"
     pacman -Rns --noconfirm "${remove[@]}" >>"$log" 2>&1 || pacman -R --noconfirm "${remove[@]}" >>"$log" 2>&1
+    exit ;;
+  --flatpak)
+    update_flatpaks
+    pkill -RTMIN+8 waybar 2>/dev/null
     exit ;;
 esac
 
@@ -64,9 +94,7 @@ else
   fi
   # New Jace app and Jace Browser releases, even before the Jace OS repository has them.
   /usr/lib/jace-os/refresh-apps >>"$log" 2>&1 || say "Couldn't check GitHub for new app releases (continuing)."
-  if command -v flatpak >/dev/null; then
-    flatpak update -y --noninteractive >>"$log" 2>&1 || say "Flatpak update failed (continuing)."
-  fi
+  update_flatpaks
   # Keep the two newest copies of each package in the cache, so a bad update can be rolled back.
   command -v paccache >/dev/null && paccache -rk2 >>"$log" 2>&1
 fi

@@ -5,6 +5,7 @@ Jace Browser installed, it becomes your default browser, and if Zen Browser is s
 installed you're asked whether to remove it (and the other apps Jace OS replaced:
 Thunar, foot and mpv). You're only asked once.
 """
+import os
 import subprocess
 import sys
 
@@ -31,6 +32,18 @@ OLD_APPS = [
 
 def installed(pkg: str) -> bool:
     return subprocess.run(["pacman", "-Q", pkg], capture_output=True).returncode == 0
+
+
+def needed_by(pkgs: list[str]) -> list[str]:
+    """Other installed packages that need these (e.g. an app that uses mpv's libmpv), so they stay."""
+    ours = {p for _t, _b, ps in OLD_APPS for p in ps}
+    out = subprocess.run(["pacman", "-Qi", *pkgs], capture_output=True, text=True,
+                         env={**os.environ, "LC_ALL": "C"}).stdout
+    users = set()
+    for line in out.splitlines():
+        if line.startswith("Required By"):
+            users.update(n for n in line.split(":", 1)[1].split() if n != "None")
+    return sorted(users - ours)
 
 
 def make_default_browser():
@@ -62,7 +75,12 @@ class MigrateWindow(Adw.ApplicationWindow):
         lb = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
         self.choices = []
         for title, by, pkgs in old:
-            row = Adw.SwitchRow(title=f"Remove {title}", subtitle=f"Replaced by {by}", active=True)
+            users = needed_by(pkgs)
+            if users:
+                row = Adw.SwitchRow(title=f"Remove {title}", active=False, sensitive=False,
+                                    subtitle=f"Kept, because {', '.join(users)} needs it")
+            else:
+                row = Adw.SwitchRow(title=f"Remove {title}", subtitle=f"Replaced by {by}", active=True)
             self.choices.append((row, pkgs))
             lb.append(row)
         box.append(lb)
