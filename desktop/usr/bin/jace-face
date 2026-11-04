@@ -6,8 +6,9 @@
 #   jace-face enable <service>       let that sign-in use your face: lock, login, sudo, admin
 #   jace-face disable <service>
 #
-# Enabling adds "auth sufficient pam_howdy.so" as the first line of the service's PAM file,
-# so your face is tried first and your password still works if it doesn't recognise you.
+# Enabling adds "auth sufficient pam_howdy.so" before the first auth line of the service's PAM
+# file, so your face is tried first and your password still works if it doesn't recognise you.
+# (Enabling again puts it back first, if it ended up after the password check.)
 set -euo pipefail
 LINE='auth sufficient pam_howdy.so'
 MARK='# Jace OS face unlock (Settings → Face unlock)'
@@ -50,7 +51,11 @@ case "${1:-}" in
     [ -f "$f" ] || { echo "$f doesn't exist." >&2; exit 1; }
     compgen -G '/usr/lib/security/pam_howdy.so' >/dev/null || compgen -G '/lib/security/pam_howdy.so' >/dev/null ||
       { echo "Howdy isn't installed." >&2; exit 1; }
-    grep -q '^auth sufficient pam_howdy.so' "$f" || sed -i "1a $MARK\n$LINE" "$f" ;;
+    sed -i -e "\|^$MARK\$|d" -e '\|^auth sufficient pam_howdy.so$|d' "$f"
+    awk -v mark="$MARK" -v line="$LINE" '
+      !done && /^[ \t]*-?auth[ \t]/ { print mark; print line; done = 1 }
+      { print }
+      END { if (!done) { print mark; print line } }' "$f" > "$f.jace" && cat "$f.jace" > "$f" && rm -f "$f.jace" ;;
   disable)
     f=$(pam_file "${2:?service}")
     sed -i -e "\|^$MARK\$|d" -e '\|^auth sufficient pam_howdy.so$|d' "$f" ;;

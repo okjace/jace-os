@@ -15,6 +15,10 @@ post_upgrade() {
   install -m644 /usr/lib/jace-os/os-release /etc/os-release
   systemd-tmpfiles --create /usr/lib/tmpfiles.d/jace-os.conf >/dev/null 2>&1
   plymouth-set-default-theme jace-os >/dev/null 2>&1 || true
+  # Face unlock: make sure your face is tried before the password (older versions put it after).
+  for s in $(/usr/bin/jace-face status 2>/dev/null | awk '$2 == "on" {print $1}'); do
+    /usr/bin/jace-face enable "$s" >/dev/null 2>&1 || true
+  done
 }
 
 post_remove() {

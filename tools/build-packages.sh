@@ -59,7 +59,7 @@ for p in "${pkgs[@]}"; do
     # Its version comes from pkgver() (VERSION plus the commit count), which --packagelist doesn't run.
     base=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' desktop/usr/lib/jace-os/jaceos/__init__.py)
     count=$(git rev-list --count HEAD 2>/dev/null || echo 0)
-    file="jace-os-$base.r$count-1-any.pkg.tar.zst"
+    file="jace-os-$base.r$count-1-x86_64.pkg.tar.zst"
   else
     file=$(cd "packages/$p" && PKGDEST="$repo" makepkg --packagelist | head -n1)
     file=$(basename "$file")
