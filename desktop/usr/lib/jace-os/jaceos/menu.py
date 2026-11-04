@@ -83,6 +83,16 @@ def load_config() -> dict:
         if app_id not in pinned:
             pinned.append(app_id)
     cfg["pinned"] = pinned
+    # Jace Browser gets pinned once (in Zen's place if Zen is pinned); unpinning it later sticks.
+    if not cfg.get("browser_pinned") and app_by_id("jace-browser.desktop") is not None:
+        if "jace-browser.desktop" not in pinned:
+            at = pinned.index("zen.desktop") if "zen.desktop" in pinned else 0
+            pinned.insert(at, "jace-browser.desktop")
+        cfg["browser_pinned"] = True
+        try:
+            _file().write_text(json.dumps(cfg, indent=2))
+        except OSError:
+            pass
     return cfg
 
 

@@ -1,9 +1,10 @@
-"""One-time changes after updating Jace OS (run at sign-in as jace-migrate).
+"""Changes after updating Jace OS (run at sign-in as jace-migrate).
 
 Jace Browser replaced Zen Browser as the default browser: the first time you sign in with
-Jace Browser installed, it becomes your default browser, and if Zen Browser is still
-installed you're asked whether to remove it (and the other apps Jace OS replaced:
-Thunar, foot and mpv). You're only asked once.
+Jace Browser installed, it becomes your default browser. Then, every time you sign in
+while apps Jace OS replaced (Zen Browser, Thunar, foot, mpv) are still installed, you're
+asked whether to remove them, until they're gone or you click "Don't ask again". Apps
+another installed package still needs are kept and not asked about.
 """
 import os
 import subprocess
@@ -18,6 +19,7 @@ from gi.repository import Adw, Gio, Gtk  # noqa: E402
 from jaceos import background, config_dir, load_css, which  # noqa: E402
 
 FLAG = "migrated-jace-browser"
+HIDE = "hide-replaced-apps"
 BROWSER = "jace-browser.desktop"
 WEB_TYPES = ["x-scheme-handler/http", "x-scheme-handler/https", "text/html", "application/xhtml+xml"]
 
@@ -87,8 +89,11 @@ class MigrateWindow(Adw.ApplicationWindow):
         self.status = Gtk.Label(css_classes=["dim-label"], wrap=True, visible=False)
         box.append(self.status)
         buttons = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER, margin_top=6)
-        self.keep = Gtk.Button(label="Keep them", css_classes=["pill"])
+        self.hide = Gtk.Button(label="Don't ask again", css_classes=["pill", "flat"])
+        self.hide.connect("clicked", self.do_hide)
+        self.keep = Gtk.Button(label="Not now", css_classes=["pill"])
         self.keep.connect("clicked", lambda *_: self.close())
+        buttons.append(self.hide)
         self.remove = Gtk.Button(label="Remove", css_classes=["pill", "destructive-action"])
         self.remove.connect("clicked", self.do_remove)
         buttons.append(self.keep)
@@ -97,6 +102,10 @@ class MigrateWindow(Adw.ApplicationWindow):
         view.set_content(box)
         self.set_content(view)
 
+    def do_hide(self, *_):
+        (config_dir() / HIDE).touch()
+        self.close()
+
     def do_remove(self, *_):
         pkgs = [p for row, ps in self.choices if row.get_active() for p in ps if installed(p)]
         if not pkgs:
@@ -104,6 +113,7 @@ class MigrateWindow(Adw.ApplicationWindow):
             return
         self.remove.set_sensitive(False)
         self.keep.set_sensitive(False)
+        self.hide.set_visible(False)
         self.status.set_visible(True)
         self.status.set_label("Removing…")
         cmd = ["pkexec", "/usr/bin/jace-update", "--remove", *pkgs]
@@ -132,14 +142,18 @@ class MigrateApp(Adw.Application):
 
 
 def main():
+    if not which("jace-browser"):
+        return      # Jace Browser isn't installed yet (try again next sign-in)
     flag = config_dir() / FLAG
-    if flag.exists() or not which("jace-browser"):
-        return      # done before, or Jace Browser isn't installed yet (try again next sign-in)
-    make_default_browser()
-    flag.touch()
-    if not installed("zen-browser-bin"):
-        return      # a new install, or Zen is already gone: nothing to ask
+    if not flag.exists():
+        make_default_browser()
+        flag.touch()
+    if (config_dir() / HIDE).exists():
+        return      # you clicked "Don't ask again"
+    old = [(t, by, [p for p in pkgs if installed(p)]) for t, by, pkgs in OLD_APPS
+           if any(installed(p) for p in pkgs)]
+    if not any(not needed_by(pkgs) for _t, _b, pkgs in old):
+        return      # nothing left that can be removed
     app = MigrateApp()
-    app.old = [(t, by, [p for p in pkgs if installed(p)]) for t, by, pkgs in OLD_APPS
-               if any(installed(p) for p in pkgs)]
+    app.old = old
     sys.exit(app.run([sys.argv[0]]))
