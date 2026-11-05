@@ -1,0 +1,36 @@
+/* The Jace OS look for GTK 4 and libadwaita apps (Settings, Files, Text Editor, …):
+   the Jace green, and rounder, roomier menus. Every user's ~/.config/gtk-4.0/gtk.css
+   imports this (jace-session adds the line); delete that line to turn it off. */
+
+:root {
+  --accent-bg-color: #1f9d5a;
+  --accent-fg-color: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --accent-color: #3ddc84; }
+}
+@media (prefers-color-scheme: light) {
+  :root { --accent-color: #157a43; }
+}
+
+/* Menus: right-click menus, ⋮ menus and drop-downs. */
+popover > contents {
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32), 0 0 0 1px alpha(currentColor, 0.09);
+}
+popover.menu > contents { padding: 6px; }
+popover.menu modelbutton {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  transition: background-color 120ms ease;
+}
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+  background-color: color-mix(in srgb, var(--accent-color) 16%, transparent);
+}
+popover.menu modelbutton:active {
+  background-color: color-mix(in srgb, var(--accent-color) 26%, transparent);
+}
+popover.menu separator { margin: 5px 6px; }
+popover.menu label.title { font-weight: 700; color: var(--accent-color); }

@@ -8,6 +8,18 @@ export XDG_CURRENT_DESKTOP=labwc:wlroots:JaceOS
 export XDG_SESSION_DESKTOP=jace-os
 export XDG_SESSION_TYPE=wayland
 
+# The Jace OS look in every GTK app (accent colour, menus): your gtk.css imports Jace OS's
+# stylesheet, so updates restyle everything. To turn it off, write "jace-os-theme: off" in a
+# comment in your gtk.css (deleting the line alone doesn't: it's added back at sign-in).
+for v in 3.0 4.0; do
+  css="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-$v/gtk.css"
+  line="@import url(\"file:///usr/share/jace-os/gtk/gtk-$v.css\");"
+  [ -f "$css" ] && { grep -qF "$line" "$css" || grep -q "jace-os-theme: off" "$css"; } && continue
+  mkdir -p "${css%/*}"
+  { printf '%s\n' "$line" "/* Jace OS look (above). To turn it off, write jace-os-theme: off in a comment here. */"
+    [ -f "$css" ] && cat "$css"; } > "$css.jace" && mv "$css.jace" "$css"
+done
+
 # -m merges ~/.config/labwc over the Jace OS defaults, so Settings only writes what you change.
 # When this session started: an update that only needs a sign-out is done once you've
 # signed in after it (see jaceos/updates.py).

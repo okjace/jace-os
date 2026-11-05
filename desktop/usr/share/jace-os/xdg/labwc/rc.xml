@@ -21,6 +21,8 @@
 
   <theme>
     <name>Jace</name>
+    <!-- Light icons for the dark menus (labwc doesn't recolor symbolic icons). -->
+    <icon>Papirus-Dark</icon>
     <cornerRadius>10</cornerRadius>
     <keepBorder>yes</keepBorder>
     <dropShadows>yes</dropShadows>
@@ -30,7 +32,7 @@
     </titlebar>
     <font place="ActiveWindow"><name>Inter</name><size>10</size><weight>bold</weight></font>
     <font place="InactiveWindow"><name>Inter</name><size>10</size></font>
-    <font place="MenuItem"><name>Inter</name><size>10</size></font>
+    <font place="MenuItem"><name>Inter</name><size>10.5</size></font>
     <font place="OnScreenDisplay"><name>Inter</name><size>11</size></font>
   </theme>
 
@@ -159,7 +161,7 @@
     </context>
     <context name="Root">
       <mousebind button="Left" action="Press" />
-      <mousebind button="Right" action="Press"><action name="ShowMenu" menu="root-menu" /></mousebind>
+      <mousebind button="Right" action="Press"><action name="Execute" command="jace-desktop-menu" /></mousebind>
       <mousebind button="Middle" action="Press" />
     </context>
     <!-- Scrolling doesn't do anything surprising: labwc's defaults (scroll on a title bar

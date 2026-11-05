@@ -74,3 +74,21 @@
   transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 .jm-app:active, .jw-app:active { transition: background-color 60ms ease; }
+
+/* --- storage (Settings → Storage) --- */
+.js-drive { padding: 18px; border-radius: 14px; background: alpha(currentColor, 0.05); }
+.js-drive-icon { color: #3ddc84; }
+.js-level, .js-mini { min-height: 10px; }
+.js-level trough, .js-mini trough { min-height: 10px; border-radius: 999px; background: alpha(currentColor, 0.1); }
+.js-level block.filled, .js-mini block.filled { border-radius: 999px; background: #3ddc84; }
+.js-level block.full { border-radius: 999px; background: #ff6b6b; }
+.js-mini trough, .js-mini block.filled { min-height: 6px; }
+
+/* --- desktop right-click menu --- */
+.jd-menu { padding: 6px; border-radius: 14px; }
+.jd-item { min-height: 36px; padding: 0 12px; border-radius: 9px; }
+.jd-item:hover, .jd-item:focus-visible { background: rgba(61, 220, 132, 0.16); }
+.jd-item:active { background: rgba(61, 220, 132, 0.26); }
+.jd-item image { color: #3ddc84; }
+.jd-item label { font-weight: normal; }
+.jd-sep { margin: 5px 8px; background: rgba(255, 255, 255, 0.08); }

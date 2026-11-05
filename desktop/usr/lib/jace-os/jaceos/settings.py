@@ -22,7 +22,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import antivirus, avatars, bar, clipboard, menu_edits, profile, shortcuts, store  # noqa: E402
+from jaceos import antivirus, avatars, bar, clipboard, menu_edits, profile, shortcuts, storage, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
@@ -42,6 +42,7 @@ PAGES = [
     ("power", "Power & battery", "battery-good-symbolic"),
     ("datetime", "Date & time", "preferences-system-time-symbolic"),
     ("apps", "Apps", "application-x-addon-symbolic"),
+    ("storage", "Storage", "drive-harddisk-symbolic"),
     ("users", "Users", "system-users-symbolic"),
     ("face", "Face unlock", "camera-web-symbolic"),
     ("about", "About", "help-about-symbolic"),
@@ -1886,6 +1887,131 @@ class SettingsWindow(Adw.ApplicationWindow):
         g.add(combo_row("Sleep after", None, times, vals["SUSPEND"], lambda v: set_idle("SUSPEND", v)))
         page.add(g)
         return page
+
+    # --- Storage -----------------------------------------------------------------------------------
+
+    def page_storage(self):
+        page = Adw.PreferencesPage()
+        for d in storage.drives():
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["js-drive"])
+            head = Gtk.Box(spacing=12)
+            head.append(Gtk.Image(icon_name="drive-harddisk-symbolic", pixel_size=32, css_classes=["js-drive-icon"]))
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, valign=Gtk.Align.CENTER)
+            text.append(Gtk.Label(label=f"{storage.human(d['free'])} free", xalign=0, css_classes=["title-3"]))
+            text.append(Gtk.Label(label=f"{d['name']} · {storage.human(d['used'])} used of "
+                                        f"{storage.human(d['size'])}", xalign=0, css_classes=["dim-label"]))
+            head.append(text)
+            box.append(head)
+            bar_ = Gtk.LevelBar(min_value=0, max_value=1, value=d["used"] / d["size"], css_classes=["js-level"])
+            bar_.add_offset_value("full", 0.95)     # red when it's almost full
+            box.append(bar_)
+            g = Adw.PreferencesGroup()
+            g.add(box)
+            page.add(g)
+
+        # What's using space: adding up every file takes a moment, so it fills in when ready.
+        use = Adw.PreferencesGroup(title="What's using space", description="In your home folder")
+        loading = plain_row(title="Adding up your files…")
+        loading.add_prefix(Adw.Spinner() if hasattr(Adw, "Spinner") else Gtk.Spinner(spinning=True))
+        use.add(loading)
+        page.add(use)
+
+        def show_categories(cats):
+            use.remove(loading)
+            total = max(sum(c["size"] for c in cats), 1)
+            for c in cats:
+                row = plain_row(title=c["title"], subtitle=storage.human(c["size"]), activatable=True)
+                row.add_prefix(Gtk.Image(icon_name=c["icon"]))
+                lvl = Gtk.LevelBar(min_value=0, max_value=1, value=c["size"] / total, valign=Gtk.Align.CENTER,
+                                   width_request=140, css_classes=["js-mini"])
+                row.add_suffix(lvl)
+                row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
+                row.connect("activated", lambda _r, path=c["path"]: spawn(["nautilus", "--new-window", path]))
+                use.add(row)
+
+        background(storage.categories, show_categories)
+
+        clean = Adw.PreferencesGroup(title="Free up space")
+        cleaning = plain_row(title="Looking for things to clean up…")
+        cleaning.add_prefix(Adw.Spinner() if hasattr(Adw, "Spinner") else Gtk.Spinner(spinning=True))
+        clean.add(cleaning)
+        page.add(clean)
+
+        def show_cleanup(c):
+            clean.remove(cleaning)
+            items = [
+                ("Trash", "user-trash-symbolic", c["trash"], "Empty",
+                 lambda: self._confirm_clean("Empty the trash?", "Everything in it is deleted for good.",
+                                             "Empty trash", storage.empty_trash)),
+                ("Old package downloads", "package-x-generic-symbolic", c["packages"], "Clean up",
+                 lambda: self._clean(lambda: storage.admin_clean("packages"))),
+                ("Apps built from the AUR", "applications-engineering-symbolic", c["build_cache"], "Delete",
+                 lambda: self._clean(storage.clear_build_cache)),
+                ("Picture previews", "image-x-generic-symbolic", c["thumbnails"], "Delete",
+                 lambda: self._clean(storage.clear_thumbnails)),
+            ]
+            if c["orphans"]:
+                names = ", ".join(c["orphans"][:6]) + ("…" if len(c["orphans"]) > 6 else "")
+                items.append((f"Unused packages: {names}", "edit-delete-symbolic", c["orphans_size"], "Remove",
+                              lambda: self._confirm_clean("Remove unused packages?",
+                                                          "Nothing installed needs them: "
+                                                          + ", ".join(c["orphans"]),
+                                                          "Remove", lambda: storage.admin_clean("orphans"))))
+            subtitles = {"Old package downloads": "Keeps one copy of each app, to undo an update with",
+                         "Apps built from the AUR": "yay keeps the files it built apps from",
+                         "Picture previews": "Made again when you need them"}
+            for title, icon, size, label, action in items:
+                row = button_row(title, " · ".join(x for x in (storage.human(size), subtitles.get(title, "")) if x),
+                                 label, action, icon=icon)
+                if size == 0:
+                    row.set_sensitive(False)
+                clean.add(row)
+            clean.add(button_row("Unused Flatpak runtimes", "Parts Flatpak apps you removed needed", "Remove",
+                                 lambda: self._clean(storage.remove_unused_flatpaks),
+                                 icon="application-x-addon-symbolic"))
+
+        background(storage.cleanup, show_cleanup)
+
+        cfg = storage.load()
+
+        def set_cfg(key, value):
+            cfg[key] = value
+            storage.save(cfg)
+
+        auto = Adw.PreferencesGroup(title="Automatic clean-up")
+        auto.add(switch_row("Empty the trash automatically", "When you sign in, delete things that have been "
+                            "in the trash for a while", cfg["auto_trash"], lambda v: set_cfg("auto_trash", v)))
+        auto.add(combo_row("Delete from the trash after", None,
+                           [(1, "1 day"), (14, "14 days"), (30, "30 days"), (60, "60 days")],
+                           int(cfg["trash_days"]), lambda v: set_cfg("trash_days", v)))
+        auto.add(switch_row("Warn me when a drive is almost full", None, cfg["low_space_warning"],
+                            lambda v: set_cfg("low_space_warning", v)))
+        page.add(auto)
+
+        more = Adw.PreferencesGroup(title="More")
+        if which("baobab"):
+            more.add(link_row("Disk Usage Analyzer", "See which folders take up the most space", ["baobab"],
+                              "drive-harddisk-symbolic"))
+        if which("gnome-disks"):
+            more.add(link_row("Disks", "Format drives, check their health and manage partitions",
+                              ["gnome-disks"], "drive-multidisk-symbolic"))
+        page.add(more)
+        return page
+
+    def _clean(self, action):
+        def done(ok_):
+            self.toast("Space freed up" if ok_ else "That didn't work")
+            if self.current == "storage":
+                self.show("storage")
+        background(action, done)
+
+    def _confirm_clean(self, heading, body, label, action):
+        d = Adw.AlertDialog(heading=heading, body=body)
+        d.add_response("cancel", "Cancel")
+        d.add_response("go", label)
+        d.set_response_appearance("go", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.connect("response", lambda _d, r: r == "go" and self._clean(action))
+        d.present(self)
 
     # --- Date & time -------------------------------------------------------------------------------
 

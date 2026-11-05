@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- The right-click menus: on the desktop (root-menu) and on a title bar (client-menu). -->
+<!-- The right-click menus: on a title bar (client-menu), and root-menu, the plain desktop menu
+     (right-clicking the desktop opens jace-desktop-menu instead; this is its fallback). -->
 <openbox_menu>
 
   <menu id="client-menu">
-    <item label="Minimize"><action name="Iconify" /></item>
-    <item label="Maximize"><action name="ToggleMaximize" /></item>
-    <item label="Snap left"><action name="SnapToEdge" direction="left" /></item>
-    <item label="Snap right"><action name="SnapToEdge" direction="right" /></item>
-    <item label="Always on top"><action name="ToggleAlwaysOnTop" /></item>
+    <item label="Minimize" icon="window-minimize"><action name="Iconify" /></item>
+    <item label="Maximize" icon="window-maximize"><action name="ToggleMaximize" /></item>
+    <item label="Snap left" icon="go-previous"><action name="SnapToEdge" direction="left" /></item>
+    <item label="Snap right" icon="go-next"><action name="SnapToEdge" direction="right" /></item>
+    <item label="Always on top" icon="window-pin"><action name="ToggleAlwaysOnTop" /></item>
     <menu id="client-send-to-menu" />
     <separator />
-    <item label="Close"><action name="Close" /></item>
+    <item label="Close" icon="window-close"><action name="Close" /></item>
   </menu>
 
   <menu id="root-menu">
@@ -19,11 +20,11 @@
     <item label="Files"><action name="Execute" command="nautilus --new-window" /></item>
     <separator />
     <item label="Change wallpaper"><action name="Execute" command="jace-settings --page appearance" /></item>
-    <item label="Display settings"><action name="Execute" command="wdisplays" /></item>
+    <item label="Display settings" icon="video-display"><action name="Execute" command="wdisplays" /></item>
     <item label="Settings"><action name="Execute" command="jace-settings" /></item>
     <separator />
-    <item label="Lock"><action name="Execute" command="jace-lock" /></item>
-    <item label="Power"><action name="Execute" command="jace-power" /></item>
+    <item label="Lock" icon="system-lock-screen"><action name="Execute" command="jace-lock" /></item>
+    <item label="Power" icon="system-shutdown"><action name="Execute" command="jace-power" /></item>
   </menu>
 
 </openbox_menu>

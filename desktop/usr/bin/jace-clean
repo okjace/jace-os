@@ -1,0 +1,24 @@
+#!/bin/bash
+# Frees up space for Settings → Storage. Runs as root through pkexec.
+#
+#   jace-clean packages   old package downloads: keeps the newest copy of each installed
+#                         package (to roll back with) and none of removed ones
+#   jace-clean orphans    remove packages nothing needs any more (installed only as dependencies)
+#   jace-clean flatpak    remove Flatpak runtimes no app uses any more (system-wide ones)
+set -euo pipefail
+[ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
+
+case "${1:-}" in
+  packages)
+    paccache -rk1 -q
+    paccache -ruk0 -q ;;
+  orphans)
+    mapfile -t orphans < <(pacman -Qdtq || true)
+    [ ${#orphans[@]} -eq 0 ] && exit 0
+    pacman -Rns --noconfirm "${orphans[@]}" ;;
+  flatpak)
+    command -v flatpak >/dev/null || exit 0
+    flatpak uninstall --system --unused -y --noninteractive ;;
+  *)
+    sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

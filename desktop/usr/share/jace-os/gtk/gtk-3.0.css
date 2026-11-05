@@ -1,0 +1,41 @@
+/* The Jace OS look for GTK 3 apps (tray menus, older apps, Electron and Firefox menus):
+   the Jace green, and rounder, roomier menus, on top of the adw-gtk3 theme. Every
+   user's ~/.config/gtk-3.0/gtk.css imports this (jace-session adds the line). */
+
+@define-color accent_bg_color #1f9d5a;
+@define-color accent_fg_color #ffffff;
+@define-color accent_color #2fbf6f;
+
+/* Right-click and tray menus */
+menu,
+.menu,
+.context-menu {
+  padding: 6px;
+  border-radius: 12px;
+}
+window.popup decoration,
+.csd.popup decoration {
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(127, 127, 127, 0.18);
+}
+menu menuitem,
+.menu menuitem,
+.context-menu menuitem {
+  min-height: 30px;
+  padding: 2px 12px;
+  border-radius: 8px;
+}
+menu menuitem:hover,
+.menu menuitem:hover,
+.context-menu menuitem:hover {
+  background-color: alpha(@accent_bg_color, 0.28);
+  color: inherit;
+}
+menu separator,
+.menu separator { margin: 5px 6px; }
+
+/* Popovers (⋮ menus in GTK 3 apps) */
+popover { border-radius: 12px; }
+popover.menu, popover.background.menu { padding: 6px; }
+popover modelbutton { min-height: 30px; padding: 2px 12px; border-radius: 8px; }
+popover modelbutton:hover { background-color: alpha(@accent_bg_color, 0.28); }

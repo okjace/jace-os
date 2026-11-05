@@ -1,0 +1,3 @@
+#!/bin/sh
+# The desktop's right-click menu (labwc runs this when you right-click the desktop).
+exec /usr/lib/jace-os/run-popup desktopmenu "$@"
