@@ -23,6 +23,21 @@ pam_file() {
   esac
 }
 
+# polkit's password helper runs sandboxed without devices, so Howdy can't open the camera
+# there. Face unlock for administrator prompts lets it use cameras (and run Howdy's Python).
+DROPIN=/etc/systemd/system/polkit-agent-helper@.service.d/jace-face.conf
+helper_camera() {
+  systemctl cat polkit-agent-helper@.service >/dev/null 2>&1 || return 0
+  if [ "$1" = on ]; then
+    mkdir -p "${DROPIN%/*}"
+    printf '%s\n' '# Jace OS face unlock (Settings → Face unlock): let Howdy use the camera.' \
+      '[Service]' 'PrivateDevices=no' 'DeviceAllow=char-video4linux rw' 'MemoryDenyWriteExecute=no' > "$DROPIN"
+  else
+    rm -f "$DROPIN"
+  fi
+  systemctl daemon-reload
+}
+
 config() {
   for c in /etc/howdy/config.ini /usr/lib/security/howdy/config.ini /lib/security/howdy/config.ini; do
     [ -f "$c" ] && { echo "$c"; return; }
@@ -48,7 +63,10 @@ case "${1:-}" in
     sed -i "s|^device_path *=.*|device_path = $dev|" "$c" ;;
   enable)
     f=$(pam_file "${2:?service}")
+    # polkit keeps its PAM file in /usr/lib/pam.d now; a copy in /etc/pam.d takes its place.
+    [ -f "$f" ] || { [ -f "/usr/lib/pam.d/${f##*/}" ] && cp "/usr/lib/pam.d/${f##*/}" "$f"; }
     [ -f "$f" ] || { echo "$f doesn't exist." >&2; exit 1; }
+    [ "$2" = admin ] && helper_camera on
     compgen -G '/usr/lib/security/pam_howdy.so' >/dev/null || compgen -G '/lib/security/pam_howdy.so' >/dev/null ||
       { echo "Howdy isn't installed." >&2; exit 1; }
     sed -i -e "\|^$MARK\$|d" -e '\|^auth sufficient pam_howdy.so$|d' "$f"
@@ -58,6 +76,7 @@ case "${1:-}" in
       END { if (!done) { print mark; print line } }' "$f" > "$f.jace" && cat "$f.jace" > "$f" && rm -f "$f.jace" ;;
   disable)
     f=$(pam_file "${2:?service}")
+    [ "$2" = admin ] && helper_camera off
     sed -i -e "\|^$MARK\$|d" -e '\|^auth sufficient pam_howdy.so$|d' "$f" ;;
   *)
     sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;

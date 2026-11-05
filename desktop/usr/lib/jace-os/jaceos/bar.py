@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from jaceos import config_dir
@@ -214,10 +215,32 @@ def reload():
     subprocess.run(["pkill", "-RTMIN+10", "-x", "waybar"], capture_output=True)
 
 
+def _session_alive() -> bool:
+    display = os.environ.get("WAYLAND_DISPLAY", "wayland-0")
+    sock = display if display.startswith("/") else os.path.join(os.environ.get("XDG_RUNTIME_DIR", ""), display)
+    return os.path.exists(sock)
+
+
 def main():
     if "--reload" in sys.argv:
         reload()
         return
-    config = write()
-    _own, _gen, style = _paths()
-    os.execvp("waybar", ["waybar", "-c", str(config), "-s", str(style)])
+    # Keep the bar up: if Waybar quits or crashes (say, a signal arrives while it's still
+    # starting, or a screen goes away), start it again. What it printed goes to waybar.log.
+    _own, generated, style = _paths()
+    log = generated.parent / "waybar.log"
+    generated.parent.mkdir(parents=True, exist_ok=True)
+    starts = []
+    while _session_alive():
+        config = write()
+        if log.exists() and log.stat().st_size > 1_000_000:
+            log.replace(log.with_suffix(".log.old"))
+        with open(log, "a") as out:
+            out.write(f"--- {time.strftime('%F %T')} starting Waybar\n")
+            out.flush()
+            code = subprocess.call(["waybar", "-c", str(config), "-s", str(style)], stdout=out, stderr=out)
+            out.write(f"--- {time.strftime('%F %T')} Waybar exited ({code})\n")
+        now = time.monotonic()
+        starts = [t for t in starts if now - t < 60] + [now]
+        # Crashing over and over: wait longer between tries instead of spinning.
+        time.sleep(30 if len(starts) >= 5 else 1)
