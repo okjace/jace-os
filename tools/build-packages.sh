@@ -61,7 +61,7 @@ for p in "${pkgs[@]}"; do
     count=$(git rev-list --count HEAD 2>/dev/null || echo 0)
     file="jace-os-$base.r$count-1-x86_64.pkg.tar.zst"
   else
-    file=$(cd "packages/$p" && PKGDEST="$repo" makepkg --packagelist | head -n1)
+    file=$(cd "packages/$p" && PKGDEST="$repo" makepkg --packagelist | sed -n 1p)
     file=$(basename "$file")
   fi
   if [ -f "$repo/$file" ] || grep -qxF "$file" "$published"; then
