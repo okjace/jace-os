@@ -31,8 +31,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Install tools
-        run: pacman -Syu --noconfirm --needed git github-cli python curl squashfs-tools gtk3 pkgconf \
-            boost cmake python-setuptools sqlite cblas lapack libx11 giflib libjpeg-turbo libjxl libpng libwebp
+        run: pacman -Syu --noconfirm --needed git github-cli python curl squashfs-tools gtk3 pkgconf boost cmake python-setuptools sqlite cblas lapack libx11 giflib libjpeg-turbo libjxl libpng libwebp
 
       - uses: actions/checkout@v4
         with:
