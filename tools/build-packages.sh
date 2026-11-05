@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds the Jace OS packages into a pacman repository in out/repo (jace-os.db):
 # jace-os, jace-launcher-bin, jace-social-bin, jace-store-bin, jace-browser-bin, zen-browser-bin
-# (for computers that still have it) and yay-bin.
+# (for computers that still have it), yay-bin and python-dlib (CPU only, for face unlock).
 # The app packages are set to the newest GitHub release of each app first, and only
 # packages whose new version isn't built or published yet are built.
 #
@@ -48,7 +48,7 @@ update_versions() {
 }
 
 pkgs=("$@")
-[ ${#pkgs[@]} -eq 0 ] && pkgs=(jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-browser-bin zen-browser-bin yay-bin)
+[ ${#pkgs[@]} -eq 0 ] && pkgs=(jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-browser-bin zen-browser-bin yay-bin python-dlib)
 
 echo "==> Newest versions"
 update_versions || echo "  (couldn't reach GitHub; building the versions in the PKGBUILDs)"
@@ -69,7 +69,7 @@ for p in "${pkgs[@]}"; do
     continue
   fi
   echo "==> Building $p ($file)"
-  # --nodeps: these only unpack and copy files, so nothing has to be installed to build them.
+  # --nodeps: the build tools are installed by CI (see .github/workflows/packages.yml).
   (cd "packages/$p" && PKGDEST="$repo" makepkg --force --cleanbuild --nodeps --noconfirm)
   built+=("$file")
 done

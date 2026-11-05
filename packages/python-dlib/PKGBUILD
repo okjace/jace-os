@@ -1,0 +1,26 @@
+# Maintainer: Jace <https://github.com/okjace>
+# dlib for Python, built for the processor only (no NVIDIA CUDA), for face unlock (Howdy).
+# The AUR's python-dlib also builds a CUDA version, which needs several GB of CUDA and
+# cuDNN and often fails to build; Howdy doesn't need it. Based on the AUR package.
+pkgname=python-dlib
+pkgver=20.0.1
+pkgrel=2
+pkgdesc="Dlib, a C++ machine learning toolkit, for Python (CPU only)"
+arch=(x86_64)
+url="http://dlib.net/"
+license=(BSL-1.0)
+depends=(python cblas lapack libx11 libgif.so libjpeg.so libjxl.so libjxl_threads.so libpng16.so libwebp.so)
+makedepends=(boost cmake python-setuptools sqlite)
+optdepends=(sqlite)
+source=("https://github.com/davisking/dlib/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('dab5b4ec4b68bd7dc128a1fb7900723f89d2da107e44cd5def7d38fc57252a9d')
+
+build() {
+  cd "dlib-$pkgver"
+  DLIB_USE_CUDA=OFF python setup.py build
+}
+
+package() {
+  cd "dlib-$pkgver"
+  python setup.py install --skip-build --prefix=/usr --root="$pkgdir" --optimize=1
+}

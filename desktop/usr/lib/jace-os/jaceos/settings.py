@@ -1781,8 +1781,8 @@ class SettingsWindow(Adw.ApplicationWindow):
             g = Adw.PreferencesGroup(title="Set up")
             if not cams:
                 g.add(plain_row(title="No camera found", subtitle="Plug one in, then come back here"))
-            g.add(button_row("Install face unlock", "Installs Howdy from the AUR with yay. It builds face recognition "
-                             "on this computer, which can take 20 minutes or more.", "Install",
+            g.add(button_row("Install face unlock", "Installs Howdy from the AUR with yay, with face recognition "
+                             "from the Jace OS repository. It takes a few minutes.", "Install",
                              lambda: spawn(["jace-terminal", "--", "/usr/lib/jace-os/then-wait",
                                             "yay", "-S", "--needed", "howdy-git"]),
                              suggested=True))
