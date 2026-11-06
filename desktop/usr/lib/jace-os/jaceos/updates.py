@@ -9,6 +9,8 @@ import json
 import os
 import subprocess
 import sys
+import time
+import urllib.request
 from pathlib import Path
 
 from jaceos import JACE_APPS, ok, run, which
@@ -84,6 +86,65 @@ def flatpak_updates() -> list[dict]:
     return updates
 
 
+# Where each app is released, so a new release shows up right away, even before the Jace OS
+# package repository has it (installing it then builds it from the release: refresh-apps).
+RELEASES = {
+    "jace-launcher-bin": ("okjace/jace-launcher", "v"),
+    "jace-social-bin": ("okjace/jace-social", "app-v"),
+    "jace-store-bin": ("okjace/jace-store", "desktop-v"),
+    "jace-browser-bin": ("okjace/jace-browser", "v"),
+    "yay-bin": ("Jguer/yay", "v"),
+}
+RELEASE_CACHE_SECONDS = 15 * 60
+
+
+def _release_cache() -> Path:
+    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "jace-os" / "releases.json"
+
+
+def latest_releases() -> dict:
+    """{package: newest released version} from GitHub, cached for 15 minutes (GitHub allows
+    60 requests an hour without signing in). Apps it can't reach are left out."""
+    cache = _release_cache()
+    try:
+        data = json.loads(cache.read_text())
+        if time.time() - data.get("time", 0) < RELEASE_CACHE_SECONDS:
+            return data["versions"]
+    except (OSError, ValueError, KeyError):
+        data = {}
+    versions = {}
+    for pkg, (repo, prefix) in RELEASES.items():
+        try:
+            req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases?per_page=30",
+                                         headers={"Accept": "application/vnd.github+json",
+                                                  "User-Agent": "jace-os-updates"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                releases = json.load(r)
+        except (OSError, ValueError):
+            if pkg in data.get("versions", {}):
+                versions[pkg] = data["versions"][pkg]    # keep what we knew
+            continue
+        for rel in releases:
+            tag = rel.get("tag_name", "")
+            if not rel.get("draft") and not rel.get("prerelease") and tag.startswith(prefix):
+                versions[pkg] = tag[len(prefix):].replace("-", "_")
+                break
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps({"time": time.time(), "versions": versions}))
+    except OSError:
+        pass
+    return versions
+
+
+def newer(candidate: str, installed: str) -> bool:
+    """Is candidate (a version like 1.11.3) newer than installed (like 1.11.2-1)?"""
+    if not candidate or not installed:
+        return False
+    out = run(["vercmp", candidate, installed.rsplit("-", 1)[0]]).strip()
+    return out.lstrip("-").isdigit() and int(out) > 0
+
+
 def installed_version(pkg: str) -> str:
     out = run(["pacman", "-Q", pkg]).split()
     return out[1] if len(out) == 2 else ""
@@ -97,11 +158,16 @@ def check() -> dict:
     # Extra apps are listed only when installed (Zen Browser stays gone once removed).
     extra = [(p, "jace-browser" if p == "jace-browser-bin" else "", n, "AUR helper" if p == "yay-bin" else "Web browser")
              for p, n in EXTRA_APPS.items() if installed_version(p)]
+    released = latest_releases()
     for pkg, cmd, name, about in JACE_APPS + extra:
         cur = installed_version(pkg)
         upd = by_name.pop(pkg, None)
+        new_ = upd["new"] if upd else ""
+        # Released on GitHub but not in the Jace OS repository yet: still an update.
+        if newer(released.get(pkg, ""), cur) and not newer(new_.rsplit("-", 1)[0], released[pkg]):
+            new_ = released[pkg]
         apps.append({"package": pkg, "command": cmd, "name": name, "about": about, "installed": cur,
-                     "new": upd["new"] if upd else "", "update": bool(upd)})
+                     "new": new_, "update": bool(new_) and cur != new_})
     security = [u for u in system if u["name"] in ("linux", "linux-lts", "linux-firmware", "openssl",
                                                    "glibc", "systemd", "sudo", "openssh", "archlinux-keyring")]
     return {
@@ -152,7 +218,11 @@ def waybar() -> str:
                                "tooltip": "Restart to finish installing updates (click for details)"})
         return json.dumps({"text": "󰍃 Sign out", "class": "available",
                            "tooltip": "Sign out and back in to finish installing updates (click for details)"})
-    n = count({"apps": [{"update": False}], "system": pacman_updates(), "flatpak": flatpak_updates()})
+    system = pacman_updates()
+    in_repo = {u["name"] for u in system}
+    released = latest_releases()
+    early = [p for p, v in released.items() if p not in in_repo and newer(v, installed_version(p))]
+    n = count({"apps": [{"update": True}] * len(early), "system": system, "flatpak": flatpak_updates()})
     if n == 0:
         return json.dumps({"text": "", "tooltip": "Everything is up to date", "class": "none"})
     return json.dumps({"text": f"󰚰 {n}", "tooltip": f"{n} update{'s' if n != 1 else ''} available: click to see them",

@@ -85,6 +85,8 @@ if [ $# -gt 0 ]; then
   # The Jace apps and browsers are self-contained, so updating just them is safe.
   pacman -Sy --noconfirm >>"$log" 2>&1 &&
     pacman -S --needed --noconfirm "$@" >>"$log" 2>&1 || status=$?
+  # A release the Jace OS repository doesn't have yet: build it from GitHub.
+  /usr/lib/jace-os/refresh-apps "$@" >>"$log" 2>&1 || say "Couldn't check GitHub for new releases (continuing)."
 else
   say "Updating everything (auto: $auto)"
   # New signing keys first, so the rest of the update can be verified.

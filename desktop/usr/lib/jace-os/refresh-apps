@@ -4,6 +4,9 @@
 # if the Jace OS package repository hasn't caught up yet: anything newer is built
 # from the Jace OS PKGBUILD (it just unpacks the official release) and installed.
 # Run as root by the installer and by jace-update.
+#
+#   refresh-apps              all of them
+#   refresh-apps <package>…   just these (e.g. jace-launcher-bin)
 set -uo pipefail
 pkgbuilds=/usr/share/jace-os/packages
 
@@ -45,10 +48,15 @@ refresh() { # package github-repo tag-prefix
   rm -rf "$work"
 }
 
-refresh jace-launcher-bin okjace/jace-launcher v
-refresh jace-social-bin okjace/jace-social app-v
-refresh jace-store-bin okjace/jace-store desktop-v
-refresh jace-browser-bin okjace/jace-browser v
-refresh zen-browser-bin zen-browser/desktop
-refresh yay-bin Jguer/yay v
+wanted() { [ $# -eq 0 ] || [[ " $* " == *" $pkg "* ]]; }
+while read -r pkg repo prefix; do
+  wanted "$@" && refresh "$pkg" "$repo" "$prefix" </dev/null
+done <<'APPS'
+jace-launcher-bin okjace/jace-launcher v
+jace-social-bin okjace/jace-social app-v
+jace-store-bin okjace/jace-store desktop-v
+jace-browser-bin okjace/jace-browser v
+zen-browser-bin zen-browser/desktop
+yay-bin Jguer/yay v
+APPS
 exit 0
