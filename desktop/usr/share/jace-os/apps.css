@@ -92,3 +92,9 @@
 .jd-item image { color: #3ddc84; }
 .jd-item label { font-weight: normal; }
 .jd-sep { margin: 5px 8px; background: rgba(255, 255, 255, 0.08); }
+
+/* --- update progress (Settings → Updates) --- */
+.ju-box { padding: 16px; margin-top: 8px; border-radius: 14px; background: alpha(currentColor, 0.05); }
+.ju-progress trough { min-height: 10px; border-radius: 999px; background: alpha(currentColor, 0.1); }
+.ju-progress progress { min-height: 10px; border-radius: 999px; background: #3ddc84;
+                        transition: min-width 300ms ease; }

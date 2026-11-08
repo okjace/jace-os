@@ -1,12 +1,19 @@
 """Finding updates for Jace OS: Arch packages (Linux and security fixes), the Jace
-apps, Jace Browser and Flatpaks. Installing them is /usr/bin/jace-update (root).
+apps, Jace Browser, Flatpaks and apps from the AUR (yay). Installing them is
+/usr/bin/jace-update (root), and yay as you for the AUR.
+
+Checks share a lock (the top bar and Settings checking at once used to make one of them
+fail and show nothing), and the last good result is kept: a check that fails (offline,
+or the package lists are busy) shows that instead of "up to date".
 
   jace-updates            list what can be updated
   jace-updates --json     the same, for scripts
   jace-updates --waybar   the top bar's updates button (JSON)
 """
+import fcntl
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -60,17 +67,62 @@ def _notify_finish(kind: str):
 EXTRA_APPS = {"jace-browser-bin": "Jace Browser", "zen-browser-bin": "Zen Browser", "yay-bin": "yay"}
 
 
-def pacman_updates() -> list[dict]:
-    """[{name, old, new}] from checkupdates (a private copy of the package lists, so no root needed)."""
-    if not which("checkupdates"):
-        return []
-    out = run(["checkupdates", "--nocolor"], timeout=180)
+def _cache_dir() -> Path:
+    d = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "jace-os"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _parse_arrows(out: str, source: str) -> list[dict]:
+    """Lines like "name 1.0-1 -> 1.1-1" (checkupdates, yay -Qua)."""
     updates = []
     for line in out.splitlines():
         parts = line.split()
         if len(parts) >= 4 and parts[2] == "->":
-            updates.append({"name": parts[0], "old": parts[1], "new": parts[3], "source": "pacman"})
+            updates.append({"name": parts[0], "old": parts[1], "new": parts[3], "source": source})
     return updates
+
+
+def _checked(kind: str, cmd: list[str], ok_codes: tuple, timeout: float) -> list[dict]:
+    """Runs one update check (one at a time across the top bar and Settings), retrying once.
+    If it still fails, the last good result is used, minus what's been installed since."""
+    cache = _cache_dir() / f"updates-{kind}.json"
+    with open(_cache_dir() / "updates.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        for attempt in range(2):
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                                   env={**os.environ, "LC_ALL": "C"})
+            except (OSError, subprocess.SubprocessError):
+                r = None
+            failed = r is None or r.returncode not in ok_codes or re.search(r"request failed|error", r.stderr, re.I)
+            if not failed:
+                found = _parse_arrows(r.stdout, kind)
+                cache.write_text(json.dumps(found))
+                return found
+            if attempt == 0:
+                time.sleep(3)
+    try:
+        old = json.loads(cache.read_text())
+    except (OSError, ValueError):
+        return []
+    return [u for u in old if (cur := installed_version(u["name"])) and cur != u["new"]
+            and newer(u["new"].rsplit("-", 1)[0], cur)]
+
+
+def pacman_updates() -> list[dict]:
+    """[{name, old, new}] from checkupdates (a private copy of the package lists, so no root
+    needed). checkupdates exits 2 when there's nothing to update."""
+    if not which("checkupdates"):
+        return []
+    return _checked("pacman", ["checkupdates", "--nocolor"], (0, 2), 180)
+
+
+def aur_updates() -> list[dict]:
+    """Apps you installed from the AUR (with yay or Jace Store) that have a newer version."""
+    if not which("yay"):
+        return []
+    return _checked("aur", ["yay", "-Qua", "--color", "never"], (0, 1), 180)
 
 
 def flatpak_updates() -> list[dict]:
@@ -175,6 +227,7 @@ def check() -> dict:
         "system": list(by_name.values()),
         "security": [u["name"] for u in security],
         "flatpak": flatpak_updates(),
+        "aur": aur_updates(),
         "reboot_required": REBOOT_FLAG.exists(),
         "finish": finish_needed(),
         "auto": auto_enabled(),
@@ -184,7 +237,8 @@ def check() -> dict:
 
 
 def count(result: dict) -> int:
-    return sum(1 for a in result["apps"] if a["update"]) + len(result["system"]) + len(result["flatpak"])
+    return (sum(1 for a in result["apps"] if a["update"]) + len(result["system"]) + len(result["flatpak"])
+            + len(result.get("aur", [])))
 
 
 def auto_enabled() -> bool:
@@ -205,6 +259,59 @@ def install(packages: list[str] | None = None) -> subprocess.Popen:
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
+def install_aur(packages: list[str]) -> subprocess.Popen:
+    """Updates AUR apps with yay, as you (AUR apps can't be built as root). Installing what yay
+    built asks for your password in the usual window (pkexec instead of sudo in a terminal)."""
+    script = ('echo "@@ 0 98 Updating apps from the AUR"; '
+              'PACMAN_AUTH=pkexec yay -S --needed --noconfirm --answerdiff None --answeredit None '
+              '--answerclean None --removemake --sudo pkexec --color never "$@"; code=$?; '
+              'echo "@@ 100 100 Done"; exit $code')
+    return subprocess.Popen(["sh", "-c", script, "jace-aur-update", *packages],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+
+class Progress:
+    """Turns the updater's output into a progress bar: jace-update prints stages
+    ("@@ <from %> <to %> <what>"), and within a stage this follows pacman going through the
+    packages ("(3/12) upgrading linux") or yay building AUR apps ("==> Making package: x")."""
+
+    PREPARE = ("checking", "loading")
+    INSTALL = {"upgrading": "Updating", "installing": "Installing", "reinstalling": "Reinstalling",
+               "downgrading": "Installing", "removing": "Removing"}
+
+    def __init__(self, aur: list[str] | None = None):
+        self.lo, self.hi, self.value, self.text = 0.0, 0.0, 0.0, "Starting…"
+        self.aur = aur or []
+        self.built = 0
+
+    def feed(self, line: str) -> bool:
+        """Reads one line of output. Returns False for progress markers (not for the log)."""
+        line = line.rstrip("\n")
+        m = re.match(r"@@ (\d+) (\d+) (.*)", line)
+        if m:
+            self.lo, self.hi = int(m.group(1)) / 100, int(m.group(2)) / 100
+            self.value, self.text = self.lo, m.group(3)
+            return False
+        m = re.match(r"\((\d+)/(\d+)\) (\w+)\s*(.*)", line.strip())
+        if m and m.group(2) != "0":
+            i, n, verb, rest = int(m.group(1)), int(m.group(2)), m.group(3), m.group(4).strip()
+            if verb in self.PREPARE:
+                part = 0.3 * i / n
+            elif verb in self.INSTALL:
+                part = 0.3 + 0.7 * i / n
+                self.text = f"{self.INSTALL[verb]} {rest.split()[0] if rest else ''} ({i} of {n})".replace("  ", " ")
+            else:
+                return True
+            self.value = max(self.value, self.lo + (self.hi - self.lo) * part)
+            return True
+        m = re.match(r"==> Making package: (\S+)", line)
+        if m and self.aur:
+            self.built += 1
+            self.value = self.lo + (self.hi - self.lo) * (self.built - 0.5) / max(len(self.aur), 1)
+            self.text = f"Building {m.group(1)} ({min(self.built, len(self.aur))} of {len(self.aur)})"
+        return True
+
+
 def set_auto(on: bool) -> bool:
     return ok(["pkexec", "/usr/bin/jace-update", "--enable-auto" if on else "--disable-auto"], timeout=120)
 
@@ -222,7 +329,8 @@ def waybar() -> str:
     in_repo = {u["name"] for u in system}
     released = latest_releases()
     early = [p for p, v in released.items() if p not in in_repo and newer(v, installed_version(p))]
-    n = count({"apps": [{"update": True}] * len(early), "system": system, "flatpak": flatpak_updates()})
+    n = count({"apps": [{"update": True}] * len(early), "system": system, "flatpak": flatpak_updates(),
+               "aur": aur_updates()})
     if n == 0:
         return json.dumps({"text": "", "tooltip": "Everything is up to date", "class": "none"})
     return json.dumps({"text": f"󰚰 {n}", "tooltip": f"{n} update{'s' if n != 1 else ''} available: click to see them",
@@ -245,5 +353,7 @@ def main():
         print(f"{u['name']}: {u['old']} -> {u['new']}")
     for u in result["flatpak"]:
         print(f"{u['title']} (Flatpak): {u['new']}")
+    for u in result["aur"]:
+        print(f"{u['name']} (AUR): {u['old']} -> {u['new']}")
     if not count(result):
         print("Everything is up to date.")

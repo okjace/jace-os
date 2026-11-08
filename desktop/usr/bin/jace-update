@@ -15,6 +15,11 @@ state=/var/lib/jace-os
 mkdir -p "$state" /run/jace-os
 
 say() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a "$log"; }
+# Progress for Settings → Updates: "@@ <from %> <to %> <what's happening>". Settings moves
+# its progress bar within that range as pacman goes through the packages.
+stage() { printf '@@ %s %s %s\n' "$1" "$2" "$3"; }
+# Runs a command with its output on screen (for Settings) and in the log; keeps its exit code.
+shown() { "$@" 2>&1 | tee -a "$log"; return "${PIPESTATUS[0]}"; }
 
 if [ "$(id -u)" -ne 0 ]; then
   exec pkexec "$0" "$@"
@@ -25,13 +30,14 @@ fi
 update_flatpaks() {
   command -v flatpak >/dev/null || return 0
   say "Updating Flatpaks"
-  flatpak update --system -y --noninteractive >>"$log" 2>&1 || say "System Flatpak update failed (continuing)."
+  shown flatpak update --system -y --noninteractive || say "System Flatpak update failed (continuing)."
   local name uid home
   while IFS=: read -r name _ uid _ _ home _; do
     [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$home/.local/share/flatpak/repo" ] || continue
     say "Updating $name's Flatpaks"
     runuser -u "$name" -- env -i HOME="$home" USER="$name" PATH=/usr/bin \
-      XDG_RUNTIME_DIR="/run/user/$uid" flatpak update --user -y --noninteractive >>"$log" 2>&1 ||
+      XDG_RUNTIME_DIR="/run/user/$uid" flatpak update --user -y --noninteractive </dev/null 2>&1 | tee -a "$log"
+    [ "${PIPESTATUS[0]}" -eq 0 ] ||
       say "$name's Flatpak update failed (continuing)."
   done < /etc/passwd
 }
@@ -61,7 +67,9 @@ case "${1:-}" in
     pacman -Rns --noconfirm "${remove[@]}" >>"$log" 2>&1 || pacman -R --noconfirm "${remove[@]}" >>"$log" 2>&1
     exit ;;
   --flatpak)
+    stage 0 98 "Updating Flatpak apps"
     update_flatpaks
+    stage 100 100 "Done"
     pkill -RTMIN+8 waybar 2>/dev/null
     exit ;;
 esac
@@ -83,23 +91,34 @@ status=0
 if [ $# -gt 0 ]; then
   say "Updating: $*"
   # The Jace apps and browsers are self-contained, so updating just them is safe.
-  pacman -Sy --noconfirm >>"$log" 2>&1 &&
-    pacman -S --needed --noconfirm "$@" >>"$log" 2>&1 || status=$?
+  stage 0 10 "Getting the newest package lists"
+  shown pacman -Sy --noconfirm || status=$?
+  if [ $status -eq 0 ]; then
+    stage 10 75 "Installing $*"
+    shown pacman -S --needed --noconfirm "$@" || status=$?
+  fi
   # A release the Jace OS repository doesn't have yet: build it from GitHub.
-  /usr/lib/jace-os/refresh-apps "$@" >>"$log" 2>&1 || say "Couldn't check GitHub for new releases (continuing)."
+  stage 75 98 "Checking GitHub for newer releases"
+  shown /usr/lib/jace-os/refresh-apps "$@" || say "Couldn't check GitHub for new releases (continuing)."
 else
   say "Updating everything (auto: $auto)"
   # New signing keys first, so the rest of the update can be verified.
-  pacman -Sy --needed --noconfirm archlinux-keyring >>"$log" 2>&1 || status=$?
+  stage 0 8 "Getting the newest package lists"
+  shown pacman -Sy --needed --noconfirm archlinux-keyring || status=$?
   if [ $status -eq 0 ]; then
-    pacman -Su --noconfirm >>"$log" 2>&1 || status=$?
+    stage 8 75 "Downloading and installing updates"
+    shown pacman -Su --noconfirm || status=$?
   fi
   # New Jace app and Jace Browser releases, even before the Jace OS repository has them.
-  /usr/lib/jace-os/refresh-apps >>"$log" 2>&1 || say "Couldn't check GitHub for new app releases (continuing)."
+  stage 75 85 "Updating the Jace apps"
+  shown /usr/lib/jace-os/refresh-apps || say "Couldn't check GitHub for new app releases (continuing)."
+  stage 85 96 "Updating Flatpak apps"
   update_flatpaks
   # Keep the two newest copies of each package in the cache, so a bad update can be rolled back.
+  stage 96 99 "Cleaning up"
   command -v paccache >/dev/null && paccache -rk2 >>"$log" 2>&1
 fi
+stage 100 100 "Done"
 
 # Compare what changed. /run is cleared when the computer restarts, so these files go away
 # by themselves; the top bar and Settings tell you about them (jaceos/updates.py).

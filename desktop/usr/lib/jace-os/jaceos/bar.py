@@ -126,7 +126,7 @@ def waybar_config(cfg: dict) -> dict:
                             "on-click": "play-pause", "on-click-right": "next", "on-click-middle": "previous"}),
         "privacy": ("privacy", {"icon-size": 14, "icon-spacing": 6, "transition-duration": 200}),
         "tray": ("tray", {"icon-size": 16, "spacing": 8}),
-        "updates": ("custom/updates", {"exec": "jace-updates --waybar", "return-type": "json", "interval": 1800,
+        "updates": ("custom/updates", {"exec": "jace-updates --waybar", "return-type": "json", "interval": 900,
                                        "signal": 8, "format": "{}", "on-click": "jace-settings --page updates"}),
         "weather": ("custom/weather", {"exec": "curl -fsm 10 'https://wttr.in/?format=%c%t' | tr -d '+'",
                                        "interval": 1800, "format": "{}",

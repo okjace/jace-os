@@ -314,7 +314,14 @@ class SettingsWindow(Adw.ApplicationWindow):
             self.content.set_content(stack)
         old = stack.get_visible_child()
         stack.add_child(page)
+        # A page that arrives mid-fade (a quick check finishing) switches straight away: fading
+        # again while the last fade's page is being removed can leave the stack showing nothing.
+        busy = stack.get_transition_running()
+        if busy:
+            stack.set_transition_type(Gtk.StackTransitionType.NONE)
         stack.set_visible_child(page)
+        if busy:
+            stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         if old is not None:
             GLib.timeout_add(220, lambda: (stack.remove(old) if old.get_parent() is stack else None, False)[1])
 
@@ -435,10 +442,12 @@ class SettingsWindow(Adw.ApplicationWindow):
         check = Gtk.Button(label="Check again", css_classes=["pill"])
         check.connect("clicked", lambda *_: self.show("updates"))
         actions.append(check)
+        aur_names = [u["name"] for u in result.get("aur", [])]
         if n:
             allb = Gtk.Button(label="Update everything", css_classes=["pill", "suggested-action"])
-            allb.connect("clicked", lambda *_: self._run_update(None))
+            allb.connect("clicked", lambda *_: self._run_update(None, aur_names))
             actions.append(allb)
+        self.update_actions = actions
         g = status_header(
             "emblem-ok-symbolic" if n == 0 else "software-update-available-symbolic",
             "You're up to date" if n == 0 else f"{n} update{'s' if n != 1 else ''} available",
@@ -446,9 +455,22 @@ class SettingsWindow(Adw.ApplicationWindow):
              "Jace OS installs updates by itself, including Linux and security fixes."), actions)
         page.add(g)
 
+        # While updating: what's happening, a progress bar, and the full output under Details.
         self.update_log = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR,
                                        css_classes=["card"], top_margin=8, bottom_margin=8, left_margin=8)
-        self.update_log_box = Gtk.ScrolledWindow(child=self.update_log, min_content_height=180, visible=False)
+        self.update_status = Gtk.Label(xalign=0, css_classes=["heading"], ellipsize=Pango.EllipsizeMode.END)
+        self.update_progress = Gtk.ProgressBar(css_classes=["ju-progress"])
+        self.update_percent = Gtk.Label(xalign=1, css_classes=["dim-label", "numeric"])
+        top = Gtk.Box(spacing=12)
+        self.update_status.set_hexpand(True)
+        top.append(self.update_status)
+        top.append(self.update_percent)
+        details = Gtk.Expander(label="Details", child=Gtk.ScrolledWindow(
+            child=self.update_log, min_content_height=200, margin_top=6))
+        self.update_log_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, visible=False,
+                                      css_classes=["ju-box"])
+        for w in (top, self.update_progress, details):
+            self.update_log_box.append(w)
         g.add(self.update_log_box)
 
         apps = Adw.PreferencesGroup(title="Jace apps", description="Jace Launcher, Jace Social, Jace Store, "
@@ -492,6 +514,17 @@ class SettingsWindow(Adw.ApplicationWindow):
                 fg.add(plain_row(title=u["title"], subtitle=u["new"] or u["name"]))
             page.add(fg)
 
+        if result.get("aur"):
+            ag = Adw.PreferencesGroup(title="Apps from the AUR", description=(
+                "Built on this computer with yay, so they can take a few minutes. "
+                "They aren't updated automatically."))
+            ab = Gtk.Button(label="Update", valign=Gtk.Align.CENTER, css_classes=["pill"])
+            ab.connect("clicked", lambda *_: self._run_update([], aur_names))
+            ag.set_header_suffix(ab)
+            for u in result["aur"]:
+                ag.add(plain_row(title=u["name"], subtitle=f"{u['old']}  →  {u['new']}"))
+            page.add(ag)
+
         auto = Adw.PreferencesGroup(title="Automatic updates")
         auto.add(switch_row("Install updates automatically",
                             "Every few hours when plugged in: Linux, security fixes, Jace apps and everything else",
@@ -509,24 +542,62 @@ class SettingsWindow(Adw.ApplicationWindow):
                    lambda res: self.toast(("Automatic updates on" if on else "Automatic updates off")
                                           if res is True else "Couldn't change automatic updates"))
 
-    def _run_update(self, packages):
+    def _run_update(self, packages, aur=None):
+        """packages: None for everything, a list for just those (["--flatpak"] for Flatpaks, [] for
+        none). aur: AUR apps to update with yay afterwards, as you."""
+        steps = []
+        if packages is None or packages:
+            steps.append(lambda: updates.install(packages))
+        if aur:
+            steps.append(lambda: updates.install_aur(aur))
+        if not steps:
+            return
         self.update_log_box.set_visible(True)
+        self.update_actions.set_sensitive(False)
         buf = self.update_log.get_buffer()
-        buf.set_text("Starting the update…\n")
-        proc = updates.install(packages)
+        buf.set_text("")
+        state = {"step": 0, "failed": False}
 
-        def read_line(stream, _cond):
-            line = stream.readline()
-            if line:
-                buf.insert(buf.get_end_iter(), line)
-                self.update_log.scroll_to_iter(buf.get_end_iter(), 0, False, 0, 0)
-                return True
-            code = proc.wait()
-            self.toast("Updates installed" if code == 0 else "The update didn't finish; see the log")
-            GLib.timeout_add_seconds(2, lambda: (self.current == "updates" and self.show("updates"), False)[1])
-            return False
+        def show(progress):
+            # Each step (the system update, then the AUR) gets an equal share of the bar.
+            overall = (state["step"] + progress.value) / len(steps)
+            self.update_progress.set_fraction(overall)
+            self.update_percent.set_label(f"{overall * 100:.0f}%")
+            self.update_status.set_label(progress.text)
 
-        GLib.io_add_watch(proc.stdout, GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, read_line)
+        def start_step():
+            progress = updates.Progress(aur=aur if steps[state["step"]] is steps[-1] and aur else None)
+            show(progress)
+            proc = steps[state["step"]]()
+
+            def read_line(stream, _cond):
+                line = stream.readline()
+                if line:
+                    if progress.feed(line):
+                        buf.insert(buf.get_end_iter(), line)
+                        self.update_log.scroll_to_iter(buf.get_end_iter(), 0, False, 0, 0)
+                    show(progress)
+                    return True
+                if proc.wait() != 0:
+                    state["failed"] = True
+                state["step"] += 1
+                if state["step"] < len(steps):
+                    start_step()
+                    return False
+                self.update_progress.set_fraction(1)
+                self.update_percent.set_label("100%")
+                self.update_status.set_label("The update didn't finish. See Details." if state["failed"]
+                                             else "Updates installed")
+                self.toast("The update didn't finish; see Details" if state["failed"] else "Updates installed")
+                self.update_actions.set_sensitive(True)
+                if not state["failed"]:
+                    GLib.timeout_add_seconds(3, lambda: (self.current == "updates" and self.show("updates"),
+                                                         False)[1])
+                return False
+
+            GLib.io_add_watch(proc.stdout, GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, read_line)
+
+        start_step()
 
     # --- Virus protection ---------------------------------------------------------------------------
 
