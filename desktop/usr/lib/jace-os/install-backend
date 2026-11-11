@@ -179,12 +179,16 @@ else
   arch-chroot "$target" useradd -m -G wheel,video,audio,input,network -s /bin/bash -c "$fullname" "$username"
   printf '%s:%s\n' "$username" "$password" | arch-chroot "$target" chpasswd
   # The keyboard layout for the desktop (labwc), same as Settings → Keyboard writes.
-  home="$target/home/$username"
-  install -d "$home/.config/labwc"
-  echo "XKB_DEFAULT_LAYOUT=$keyboard" > "$home/.config/labwc/environment"
-  arch-chroot "$target" chown -R "$username:$username" "/home/$username/.config"
+  # Made as the new person, not root (a root-owned ~/.config breaks apps).
+  arch-chroot "$target" runuser -u "$username" -- mkdir -p "/home/$username/.config/labwc"
+  arch-chroot "$target" runuser -u "$username" -- sh -c 'echo "XKB_DEFAULT_LAYOUT=$1" > "$2"' sh \
+    "$keyboard" "/home/$username/.config/labwc/environment"
   # Desktop, Documents, Downloads, Music, Pictures, Videos… ready from the first sign-in.
   arch-chroot "$target" runuser -u "$username" -- xdg-user-dirs-update || true
+  # Everything in the home folder belongs to its person, whatever made it.
+  arch-chroot "$target" chown -R "$username:$username" "/home/$username"
+  chmod 700 "$target/home/$username"
+  chmod 755 "$target/home/$username/.config"
   if [ "$autologin" = true ]; then
     printf '\n[initial_session]\ncommand = "jace-session"\nuser = "%s"\n' "$username" >> "$target/etc/greetd/jace-os.toml"
   fi

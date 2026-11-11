@@ -23,7 +23,13 @@ case "${1:-}" in
     [ "$kind" = admin ] && groups="$groups,wheel"
     useradd -m -s /bin/bash -c "$full" -G "$groups" "$user"
     printf '%s:%s\n' "$user" "$password" | chpasswd
-    runuser -u "$user" -- xdg-user-dirs-update >/dev/null 2>&1 || true ;;
+    runuser -u "$user" -- xdg-user-dirs-update >/dev/null 2>&1 || true
+    # Everything in the new home folder belongs to its person (a root-owned ~/.config breaks apps).
+    home=$(getent passwd "$user" | cut -d: -f6)
+    chown -R "$user:$user" "$home"
+    chmod 700 "$home"
+    [ -d "$home/.config" ] && chmod 755 "$home/.config"
+    true ;;
   password)
     user=${2:?username}
     valid_user "$user"

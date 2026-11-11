@@ -93,9 +93,10 @@ case "${1:-}" in
     useradd -m -G wheel,video,audio,input,network -s /bin/bash -c "$fullname" "$username"
     printf '%s:%s\n' "$username" "$password" | chpasswd
     home=$(getent passwd "$username" | cut -d: -f6)
-    install -d -o "$username" -g "$username" "$home/.config/labwc" "$home/.config/jace-os"
-    echo "XKB_DEFAULT_LAYOUT=$keyboard" > "$home/.config/labwc/environment"
-    chown "$username:$username" "$home/.config/labwc/environment"
+    # Made as the new person, not root: a root-owned ~/.config breaks apps (Electron apps
+    # can't find their settings folder) and keeps Settings from saving.
+    runuser -u "$username" -- mkdir -p "$home/.config/labwc" "$home/.config/jace-os"
+    runuser -u "$username" -- sh -c 'echo "XKB_DEFAULT_LAYOUT=$1" > "$2"' sh "$keyboard" "$home/.config/labwc/environment"
     runuser -u "$username" -- env HOME="$home" LANG="$locale" xdg-user-dirs-update >/dev/null 2>&1 || true
 
     progress 80 "Choosing your look"
@@ -106,6 +107,10 @@ case "${1:-}" in
       >/dev/null 2>&1 || true
 
     progress 95 "Finishing up"
+    # Everything in the new home folder belongs to its person, whatever made it.
+    chown -R "$username:$username" "$home"
+    chmod 700 "$home"
+    chmod 755 "$home/.config"
     rm -f "$PENDING"
     # Sign straight in to the new account this once (greetd-start uses this file one time).
     mkdir -p /run/jace-os

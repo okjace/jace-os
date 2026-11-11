@@ -11,7 +11,23 @@ post_install() {
   /usr/lib/jace-os/enable-splash >/dev/null 2>&1 || true
 }
 
+# Older versions of Setup left ~/.config owned by root, which breaks apps (Electron apps
+# can't find their settings folder). Give each person's ~/.config, ~/.local and ~/.cache,
+# and anything root made directly inside them, back to them.
+fix_homes() {
+  local name uid home d
+  while IFS=: read -r name _ uid _ _ home _; do
+    [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [[ "$home" == /home/* ]] && [ -d "$home" ] || continue
+    for d in "$home/.config" "$home/.local" "$home/.cache"; do
+      [ -d "$d" ] || continue
+      [ "$(stat -c %u "$d")" = "$uid" ] || chown "$name:" "$d"
+      find "$d" -mindepth 1 -maxdepth 1 -uid 0 -exec chown -R "$name:" {} + 2>/dev/null
+    done
+  done < /etc/passwd
+}
+
 post_upgrade() {
+  fix_homes
   install -m644 /usr/lib/jace-os/os-release /etc/os-release
   systemd-tmpfiles --create /usr/lib/tmpfiles.d/jace-os.conf >/dev/null 2>&1
   plymouth-set-default-theme jace-os >/dev/null 2>&1 || true
