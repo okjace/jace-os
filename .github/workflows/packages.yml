@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: packages
+  group: packages-builds
   cancel-in-progress: false
 
 jobs:
