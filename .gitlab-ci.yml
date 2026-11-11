@@ -1,0 +1,132 @@
+# GitLab CI: a backup for the GitHub Actions builds (.github/workflows), for when GitHub
+# Actions is down. It builds the same things with the same scripts and publishes to the same
+# places: the pacman repository (the "repo" GitHub release), the ISO as a GitHub release, and
+# the ISO on Jace Store.
+#
+# It only runs when you start it (CI/CD → Pipelines → Run pipeline, or a pipeline schedule),
+# never on push, so it doesn't publish a second copy of what GitHub Actions does.
+#
+# Needs these CI/CD variables (Settings → CI/CD → Variables, "Masked"):
+#   GH_TOKEN          a GitHub token that can write okjace/jace-os (repo scope / contents: write)
+#   JACE_STORE_TOKEN  a Jace Store token (optional: without it the Jace Store step is skipped)
+# and Settings → CI/CD → General pipelines → Timeout set to 3h (the ISO takes ~45 minutes).
+#
+# Run pipeline variables:
+#   PUBLISH=false     build the ISO without publishing it (a test build: it's too big to keep
+#                     as a GitLab artifact, so it's thrown away)
+#   TAG=v1.2.0        publish under this version instead of today's date
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "api"
+
+variables:
+  REPO: okjace/jace-os
+  GIT_DEPTH: "0"          # the whole history: the Jace OS version counts commits
+  PUBLISH: "true"
+  TAG: ""
+
+stages: [packages, iso, store]
+
+packages:
+  stage: packages
+  image: archlinux:base-devel
+  timeout: 1h
+  script:
+    - pacman -Syu --noconfirm --needed git github-cli python curl squashfs-tools gtk3 pkgconf boost cmake
+      python-setuptools sqlite cblas lapack libx11 giflib libjpeg-turbo libjxl libpng libwebp
+    - useradd -m builder
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    # The published repository database, so only what's new gets built.
+    - mkdir -p out/repo
+    - |
+      if gh release view repo -R "$REPO" >/dev/null 2>&1; then
+        gh release view repo -R "$REPO" --json assets -q '.assets[].name' > out/published.txt
+        gh release download repo -R "$REPO" -D out/repo --pattern 'jace-os.db.tar.gz' --pattern 'jace-os.files.tar.gz' || true
+      fi
+    - chown -R builder "$CI_PROJECT_DIR"
+    - sudo -u builder --preserve-env=GH_TOKEN bash -c 'git config --global --add safe.directory "$PWD" && GITHUB_TOKEN=$GH_TOKEN tools/build-packages.sh'
+    # Publish what was built, the same way .github/workflows/packages.yml does.
+    - |
+      [ -f out/built.txt ] || { echo "Nothing new."; exit 0; }
+      cd "$CI_PROJECT_DIR/out/repo"
+      while read -r f; do gh release upload repo -R "$REPO" --clobber "$f"; done < ../built.txt
+      gh release upload repo -R "$REPO" --clobber jace-os.db jace-os.files jace-os.db.tar.gz jace-os.files.tar.gz
+      current=$(tar -xzOf jace-os.db.tar.gz --wildcards '*/desc' | awk '/%FILENAME%/{getline; print}')
+      gh release view repo -R "$REPO" --json assets -q '.assets[].name' | while read -r f; do
+        case "$f" in
+          *.pkg.tar.zst) grep -qxF "$f" <<<"$current" || gh release delete-asset repo "$f" -R "$REPO" -y ;;
+        esac
+      done
+
+iso:
+  stage: iso
+  image: archlinux:latest
+  timeout: 3h
+  needs: [packages]
+  script:
+    - pacman -Syu --noconfirm --needed archiso git github-cli curl
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - |
+      if [ -n "$TAG" ]; then
+        tag=$TAG
+      else
+        base="v$(date -u +%Y.%m.%d)"; tag=$base; n=2
+        while gh release view "$tag" -R "$REPO" >/dev/null 2>&1; do tag="$base.$n"; n=$((n + 1)); done
+      fi
+      echo "TAG=$tag" > "$CI_PROJECT_DIR/tag.env"
+      echo "Building Jace OS ${tag#v} (publish: $PUBLISH)"
+    - mkdir -p out/repo && gh release download repo -R "$REPO" -D out/repo
+    - cp out/repo/jace-os.db out/repo/jace-os.db.tar.gz 2>/dev/null || true
+    # mkarchiso needs a privileged container (GitLab.com's Linux runners are).
+    - ./build.sh
+    - |
+      . "$CI_PROJECT_DIR/tag.env"
+      cd "$CI_PROJECT_DIR/out"
+      iso=$(ls ./*.iso | head -n1); want="./jace-os-${TAG#v}-x86_64.iso"
+      [ "$iso" = "$want" ] || mv "$iso" "$want"
+      sha256sum ./*.iso > SHA256SUMS
+      cat SHA256SUMS
+    - |
+      [ "$PUBLISH" = true ] || { echo "Not publishing (PUBLISH=$PUBLISH)."; exit 0; }
+      . "$CI_PROJECT_DIR/tag.env"
+      cd "$CI_PROJECT_DIR/out"
+      iso=$(ls ./*.iso | head -n1); iso=${iso#./}
+      files=("$iso" SHA256SUMS); join=""
+      # GitHub release files can be at most 2 GiB: split bigger ISOs.
+      if [ "$(stat -c %s "$iso")" -gt 2000000000 ]; then
+        split -b 1900M -d -a 1 "$iso" "$iso.part"
+        files=("$iso".part* SHA256SUMS)
+        join="**The ISO is in parts.** Download them all and join them first:
+      - Linux and macOS: \`cat $iso.part* > $iso\`
+      - Windows: \`copy /b $iso.part0 + $iso.part1 $iso\`
+      "
+      fi
+      printf '%s\n' "## Jace OS ${TAG#v}" "" \
+        "Try Jace OS from a USB stick, or install it. Write the ISO to a USB stick (8 GB or bigger)" \
+        "with [balenaEtcher](https://etcher.balena.io) or [Rufus](https://rufus.ie), start your" \
+        "computer from it, and pick **Try Jace OS** or **Install Jace OS**." "" "$join" \
+        "Includes the newest Jace Launcher, Jace Social, Jace Store and Jace Browser, and installs" \
+        "get the newest versions again while installing." "" \
+        "Full instructions: https://okjace.github.io/jace-os/#install" > notes.md
+      gh release create "$TAG" -R "$REPO" --target "$CI_COMMIT_SHA" --title "Jace OS ${TAG#v}" \
+        --notes-file notes.md --generate-notes --latest "${files[@]}"
+  artifacts:
+    expire_in: 3 days
+    reports:
+      dotenv: tag.env           # passes TAG on to the store job
+
+store:
+  stage: store
+  image: archlinux:latest
+  needs: [iso]
+  rules:
+    - if: $PUBLISH == "true"
+  script:
+    - |
+      if [ -z "$JACE_STORE_TOKEN" ]; then
+        echo "JACE_STORE_TOKEN isn't set: skipping Jace Store."
+        exit 0
+      fi
+    - pacman -Syu --noconfirm --needed nodejs python
+    - python3 tools/publish-store.py "$TAG"
