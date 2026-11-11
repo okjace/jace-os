@@ -1,0 +1,18 @@
+#!/bin/bash
+# Starts the login screen (greetd.service runs this as root):
+#   - a factory reset you asked for in Settings happens first (factory-reset run),
+#   - then Setup (jace-setup) if the computer hasn't been set up yet,
+#   - right after Setup, the new account is signed in this once,
+#   - otherwise the normal Jace OS login screen.
+state=/var/lib/jace-os
+if [ -e "$state/factory-reset-pending" ]; then
+  /usr/lib/jace-os/factory-reset run || echo "jace-os: the factory reset didn't finish" >&2
+fi
+if [ -e "$state/setup-pending" ]; then
+  exec /usr/bin/greetd --config /usr/share/jace-os/greetd/setup.toml
+fi
+if [ -e /run/jace-os/greetd-once.toml ]; then
+  mv /run/jace-os/greetd-once.toml /run/jace-os/greetd-once-used.toml
+  exec /usr/bin/greetd --config /run/jace-os/greetd-once-used.toml
+fi
+exec /usr/bin/greetd --config /etc/greetd/jace-os.toml

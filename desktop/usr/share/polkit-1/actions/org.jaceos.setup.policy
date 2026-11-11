@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Jace OS</vendor>
+  <vendor_url>https://okjace.github.io/jace-os/</vendor_url>
+  <action id="org.jaceos.setup">
+    <description>Set up this computer</description>
+    <message>Setting up this computer needs an administrator</message>
+    <icon_name>jace-os</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/jace-os/setup-backend</annotate>
+  </action>
+  <action id="org.jaceos.reset">
+    <description>Reset this computer</description>
+    <message>Resetting this computer removes every account and needs your password</message>
+    <icon_name>jace-os</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/jace-os/factory-reset</annotate>
+  </action>
+  <action id="org.jaceos.language">
+    <description>Change the language</description>
+    <message>Changing the language needs your password</message>
+    <icon_name>jace-os</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/jace-os/set-language</annotate>
+  </action>
+</policyconfig>

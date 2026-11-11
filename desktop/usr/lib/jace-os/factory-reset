@@ -1,0 +1,52 @@
+#!/bin/bash
+# Resets Jace OS to how it was when it was installed (Settings → About → Reset this computer).
+# Runs as root.
+#
+#   factory-reset schedule   (pkexec, asks for your password) set it up and restart now
+#   factory-reset run        (greetd-start, at the next start, before anyone signs in)
+#                            remove every account and its files, saved Wi-Fi networks and
+#                            face unlock, then start Setup again
+#
+# Apps and updates stay installed. Nothing happens until the computer restarts.
+set -uo pipefail
+state=/var/lib/jace-os
+
+[ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
+
+case "${1:-}" in
+  schedule)
+    install -d "$state"
+    date '+%F %T' > "$state/factory-reset-pending"
+    systemd-run --on-active=2 --quiet systemctl reboot ;;
+
+  run)
+    [ -e "$state/factory-reset-pending" ] || exit 0
+    echo "jace-os: resetting this computer"
+    # Every account people sign in to (uid 1000-59999), with its home folder.
+    while IFS=: read -r name _ uid _ _ home _; do
+      [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] || continue
+      loginctl terminate-user "$name" >/dev/null 2>&1 || true
+      pkill -KILL -u "$name" 2>/dev/null || true
+      userdel -r -f "$name" >/dev/null 2>&1 || userdel -f "$name" >/dev/null 2>&1
+      [ -n "$home" ] && [ "$home" != / ] && [[ "$home" == /home/* ]] && rm -rf -- "$home"
+      rm -f "/var/lib/AccountsService/users/$name" "/var/lib/AccountsService/icons/$name"
+    done < <(getent passwd)
+    # Signing in automatically, saved Wi-Fi networks, face unlock, quarantined files.
+    sed -i '/^\[initial_session\]/,$d' /etc/greetd/jace-os.toml
+    rm -f /etc/NetworkManager/system-connections/*
+    rm -rf /usr/lib/security/howdy/models/* /etc/howdy/models/* 2>/dev/null
+    for f in /etc/pam.d/gtklock /etc/pam.d/greetd /etc/pam.d/sudo /etc/pam.d/polkit-1; do
+      [ -f "$f" ] && sed -i -e '/^# Jace OS face unlock/d' -e '/^auth sufficient pam_howdy.so$/d' "$f"
+    done
+    rm -f /etc/systemd/system/polkit-agent-helper@.service.d/jace-face.conf
+    find "$state/quarantine" -mindepth 1 -delete 2>/dev/null
+    rm -f "$state/last-update" "$state/last-error" /var/lib/regreet/state.toml
+    echo "jace-os" > /etc/hostname
+    # Start Setup again.
+    touch "$state/setup-pending"
+    rm -f "$state/factory-reset-pending"
+    echo "jace-os: reset finished; starting Setup" ;;
+
+  *)
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

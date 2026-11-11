@@ -2,10 +2,11 @@
 
   jace-installer
 
-Steps: Welcome → Language & keyboard → Disk → Your account → Review → Installing → Done.
-It erases the whole disk you pick (with optional encryption) and runs
-/usr/lib/jace-os/install-backend as root, showing its progress. For dual-booting or
-your own partitions, "Advanced install" opens archinstall with the Jace OS preset.
+Steps: Welcome → Disk → Review → Installing → Done. It only puts Jace OS on the disk you
+pick (erasing it, with optional encryption) by running /usr/lib/jace-os/install-backend as
+root. Your language, keyboard, Wi-Fi, time zone and account come later, in Setup (jace-setup),
+the first time the installed computer starts. For dual-booting or your own partitions,
+"Advanced install" opens archinstall with the Jace OS preset.
 """
 import json
 import os
@@ -88,8 +89,8 @@ class InstallerWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Install Jace OS", default_width=820, default_height=640)
         self.set_icon_name("jace-os")
-        self.choice = {"encrypt": False, "autologin": False, "locale": "en_US.UTF-8", "keyboard": "us",
-                       "timezone": current_timezone()}
+        # Language, keyboard and time zone are chosen in Setup; these are the defaults until then.
+        self.choice = {"encrypt": False, "locale": "en_US.UTF-8", "keyboard": "us", "timezone": current_timezone()}
         self.toasts = Adw.ToastOverlay()
         view = Adw.ToolbarView()
         header = Adw.HeaderBar()
@@ -98,9 +99,8 @@ class InstallerWindow(Adw.ApplicationWindow):
         view.add_top_bar(header)
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT, vexpand=True)
-        self.order = ["welcome", "language", "disk", "account", "review"]
-        builders = {"welcome": self.page_welcome, "language": self.page_language, "disk": self.page_disk,
-                    "account": self.page_account, "review": self.page_review}
+        self.order = ["welcome", "disk", "review"]
+        builders = {"welcome": self.page_welcome, "disk": self.page_disk, "review": self.page_review}
         for name in self.order:
             self.stack.add_named(builders[name](), name)
         self.stack.add_named(self.page_progress(), "progress")
@@ -178,7 +178,8 @@ class InstallerWindow(Adw.ApplicationWindow):
     def page_welcome(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         box.append(self.heading("Install Jace OS", "This puts Jace OS on this computer's disk. It takes about "
-                                "10 to 20 minutes, depending on your internet connection.", "logo"))
+                                "10 to 20 minutes, depending on your internet connection. You'll choose your "
+                                "language, Wi-Fi and account when the computer starts.", "logo"))
         self.net_banner = Adw.Banner(title="You're not connected to the internet. Jace OS needs it to install.",
                                      button_label="Connect to Wi-Fi")
         self.net_banner.connect("button-clicked", lambda *_: spawn(["jace-settings", "--page", "network"]))
@@ -210,30 +211,6 @@ class InstallerWindow(Adw.ApplicationWindow):
             self.net_banner.set_revealed(not self._online)
         background(online, done)
         return self.current == "welcome"
-
-    def page_language(self):
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.append(self.heading("Language and keyboard", "You can change these later in Settings.",
-                                "preferences-desktop-locale-symbolic"))
-        g = Adw.PreferencesGroup()
-        g.add(self.combo("Language", LOCALES, "locale"))
-        g.add(self.combo("Keyboard", KEYBOARDS, "keyboard"))
-        zones = run(["timedatectl", "list-timezones"]).split() or ["UTC"]
-        tz = self.combo("Time zone", [(z, z.replace("_", " ")) for z in zones], "timezone")
-        tz.set_enable_search(True)
-        g.add(tz)
-        test = Adw.EntryRow(title="Try your keyboard here")
-        g.add(test)
-        box.append(g)
-        return self.scrolled(box)
-
-    def combo(self, title, options, key):
-        row = Adw.ComboRow(title=title, model=Gtk.StringList.new([label for _v, label in options]))
-        values = [v for v, _l in options]
-        if self.choice.get(key) in values:
-            row.set_selected(values.index(self.choice[key]))
-        row.connect("notify::selected", lambda r, _p: self.choice.__setitem__(key, values[r.get_selected()]))
-        return row
 
     def page_disk(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -292,36 +269,6 @@ class InstallerWindow(Adw.ApplicationWindow):
             self.disk_list.append(Adw.ActionRow(title="No disks found",
                                                 subtitle="Jace OS needs a disk of at least 20 GB."))
 
-    def page_account(self):
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.append(self.heading("Your account", "You'll use this to sign in to Jace OS.", "avatar-default-symbolic"))
-        g = Adw.PreferencesGroup()
-        self.fullname = Adw.EntryRow(title="Your name")
-        self.username = Adw.EntryRow(title="Username")
-        self.hostname = Adw.EntryRow(title="Computer name")
-        self.pw = Adw.PasswordEntryRow(title="Password")
-        self.pw2 = Adw.PasswordEntryRow(title="Type it again")
-        self._auto = {"user": "", "host": ""}
-
-        def name_changed(*_):
-            # Fill in the username and computer name until you type your own.
-            user = re.sub(r"[^a-z0-9_-]", "", (self.fullname.get_text().strip().lower().split() or [""])[0])[:32]
-            if self.username.get_text() in ("", self._auto["user"]):
-                self.username.set_text(user)
-                self._auto["user"] = user
-            host = f"{user or 'jace'}-pc"
-            if self.hostname.get_text() in ("", self._auto["host"]):
-                self.hostname.set_text(host)
-                self._auto["host"] = host
-        self.fullname.connect("changed", name_changed)
-        for r in (self.fullname, self.username, self.hostname, self.pw, self.pw2):
-            g.add(r)
-        auto = Adw.SwitchRow(title="Sign in automatically", subtitle="Skip the login screen when the computer starts")
-        auto.connect("notify::active", lambda r, _p: self.choice.__setitem__("autologin", r.get_active()))
-        g.add(auto)
-        box.append(g)
-        return self.scrolled(box)
-
     def page_review(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box.append(self.heading("Ready to install", "Check everything, then click Erase and install.",
@@ -333,17 +280,12 @@ class InstallerWindow(Adw.ApplicationWindow):
     def fill_review(self):
         page = self.review.get_parent()
         new = Adw.PreferencesGroup()
-        loc = dict(LOCALES).get(self.choice["locale"], self.choice["locale"])
-        kb = dict(KEYBOARDS).get(self.choice["keyboard"], self.choice["keyboard"])
         disk = next((d for d in disks() if d["path"] == self.choice.get("disk")), None)
         for title, value in (
             ("Disk (will be erased)", f"{disk['model']} · {disk['path']} · {human(disk['size'])}" if disk else "?"),
             ("Encryption", "On" if self.choice["encrypt"] else "Off"),
-            ("Language", loc), ("Keyboard", kb), ("Time zone", self.choice["timezone"]),
-            ("Name", self.fullname.get_text()), ("Username", self.username.get_text()),
-            ("Computer name", self.hostname.get_text()),
-            ("Sign in automatically", "Yes" if self.choice["autologin"] else "No"),
             ("Boot", "UEFI" if Path("/sys/firmware/efi").exists() else "BIOS (legacy)"),
+            ("After restarting", "Setup asks for your language, Wi-Fi, time zone and account"),
         ):
             new.add(Adw.ActionRow(title=title, subtitle=GLib.markup_escape_text(value or "—")))
         page.remove(self.review)
@@ -361,19 +303,6 @@ class InstallerWindow(Adw.ApplicationWindow):
                     return "The encryption password needs at least 6 characters."
                 if self.disk_pw.get_text() != self.disk_pw2.get_text():
                     return "The encryption passwords don't match."
-        if page == "account":
-            if not self.fullname.get_text().strip():
-                return "Type your name."
-            if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", self.username.get_text()):
-                return "Usernames are lowercase letters, numbers, - and _."
-            if self.username.get_text() in ("root", "jace-live", "greeter", "clamav", "nobody"):
-                return "Choose a different username."
-            if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9-]{0,62}", self.hostname.get_text()):
-                return "Computer names are letters, numbers and -."
-            if not self.pw.get_text():
-                return "Choose a password."
-            if self.pw.get_text() != self.pw2.get_text():
-                return "The passwords don't match."
         return ""
 
     def confirm(self):
@@ -407,7 +336,7 @@ class InstallerWindow(Adw.ApplicationWindow):
     def page_done(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         box.append(self.heading("Jace OS is installed", "Restart the computer and take out the USB stick. "
-                                "Then sign in with the account you just made.", "logo"))
+                                "Setup starts and gets everything ready for you.", "logo"))
         restart = Gtk.Button(label="Restart now", css_classes=["pill", "suggested-action"], halign=Gtk.Align.CENTER)
         restart.connect("clicked", lambda *_: spawn(["systemctl", "reboot"]))
         later = Gtk.Button(label="Keep trying Jace OS", css_classes=["pill"], halign=Gtk.Align.CENTER)
@@ -417,9 +346,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         return self.scrolled(box)
 
     def start(self):
-        self.choice.update(fullname=self.fullname.get_text().strip(), username=self.username.get_text(),
-                           hostname=self.hostname.get_text(), password=self.pw.get_text(),
-                           disk_password=self.disk_pw.get_text() if self.choice["encrypt"] else "")
+        self.choice.update(disk_password=self.disk_pw.get_text() if self.choice["encrypt"] else "")
         self.show_page("progress")
         self.title.set_subtitle(self.choice["disk"])
         self.retry.set_visible(False)
@@ -436,7 +363,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         self.proc.stdin.write(json.dumps(self.choice))
         self.proc.stdin.close()
         # The passwords aren't needed here any more.
-        self.choice["password"] = self.choice["disk_password"] = ""
+        self.choice["disk_password"] = ""
         self.finished = False
         GLib.io_add_watch(self.proc.stdout, GLib.PRIORITY_DEFAULT, GLib.IO_IN | GLib.IO_HUP, self.read)
         self.inhibit = self.get_application().inhibit(self, Gtk.ApplicationInhibitFlags.LOGOUT |

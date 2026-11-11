@@ -1,0 +1,13 @@
+#!/bin/bash
+# Sets the language for the whole computer (Settings → Language). Runs as root through pkexec.
+#
+#   set-language <locale>   like de_DE.UTF-8: used from your next sign-in
+set -euo pipefail
+[ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
+locale=${1:-}
+[[ "$locale" =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]] || { echo "That isn't a language: $locale" >&2; exit 2; }
+grep -q "^#\?${locale//./\\.} UTF-8" /etc/locale.gen || { echo "Jace OS doesn't know $locale." >&2; exit 2; }
+sed -i "s/^#\(${locale//./\\.} \)/\1/" /etc/locale.gen
+grep -q "^en_US.UTF-8" /etc/locale.gen || sed -i 's/^#\(en_US\.UTF-8 \)/\1/' /etc/locale.gen
+locale-gen >/dev/null
+echo "LANG=$locale" > /etc/locale.conf

@@ -8,6 +8,7 @@ windows, keyboard, power, datetime, apps, users, about.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -41,6 +42,7 @@ PAGES = [
     ("shortcuts", "Keyboard shortcuts", "preferences-desktop-keyboard-shortcuts-symbolic"),
     ("power", "Power & battery", "battery-good-symbolic"),
     ("datetime", "Date & time", "preferences-system-time-symbolic"),
+    ("language", "Language", "preferences-desktop-locale-symbolic"),
     ("apps", "Apps", "application-x-addon-symbolic"),
     ("storage", "Storage", "drive-harddisk-symbolic"),
     ("users", "Users", "system-users-symbolic"),
@@ -2084,6 +2086,46 @@ class SettingsWindow(Adw.ApplicationWindow):
         d.connect("response", lambda _d, r: r == "go" and self._clean(action))
         d.present(self)
 
+    # --- Language ----------------------------------------------------------------------------------
+
+    def page_language(self):
+        from jaceos import i18n
+        from jaceos.installer import LOCALES
+        page = Adw.PreferencesPage()
+        current = i18n.system_locale().replace(".utf8", ".UTF-8")
+        if current not in dict(LOCALES):
+            current = "en_US.UTF-8"
+        translated = sorted(p.stem for p in i18n.LOCALE_DIR.glob("*.json")) if i18n.LOCALE_DIR.is_dir() else []
+        g = Adw.PreferencesGroup(description="Apps switch to it the next time you sign in. Files, Text Editor, "
+                                             "Jace Browser and most other apps are translated; Setup and more of "
+                                             "Jace OS's own apps are being translated (" + str(len(translated)) +
+                                             " languages so far).")
+        status = Gtk.Label(xalign=0, wrap=True, css_classes=["dim-label"], visible=False, margin_top=8)
+
+        def chosen(locale):
+            if locale == current:
+                return
+            status.set_label("Changing the language…")
+            status.set_visible(True)
+
+            def done(res):
+                if res is True:
+                    status.set_label("Sign out and back in to use the new language.")
+                    self.toast("Language changed")
+                else:
+                    status.set_label("The language couldn't be changed.")
+            background(lambda: ok(["pkexec", "/usr/lib/jace-os/set-language", locale], timeout=300), done)
+
+        row = combo_row("Language", "For the whole computer, including the login screen", LOCALES, current, chosen)
+        row.set_enable_search(True)
+        g.add(row)
+        g.add(status)
+        page.add(g)
+        page.add(group("Keyboard", None, link_row("Keyboard layout", "Settings → Keyboard & mouse",
+                                                  ["jace-settings", "--page", "keyboard"],
+                                                  "input-keyboard-symbolic")))
+        return page
+
     # --- Date & time -------------------------------------------------------------------------------
 
     def page_datetime(self):
@@ -2684,7 +2726,66 @@ class SettingsWindow(Adw.ApplicationWindow):
                        link_row("Report a problem", "On GitHub", f"{GITHUB}/issues", "dialog-warning-symbolic"),
                        link_row("Check for updates", None, ["jace-settings", "--page", "updates"],
                                 "software-update-available-symbolic")))
+
+        reset = Adw.PreferencesGroup(title="Reset this computer")
+        reset.add(button_row("Reset settings", "Your top bar, start menu, windows, shortcuts and look go back to "
+                             "how they started. Your files, apps and Jace account stay.", "Reset…",
+                             self._reset_settings, icon="edit-undo-symbolic"))
+        everything = button_row("Remove everything", "Deletes every account on this computer and all their "
+                                "files, then starts Setup again, like a new computer. Apps stay installed.",
+                                "Reset…", self._factory_reset, icon="edit-delete-symbolic")
+        reset.add(everything)
+        page.add(reset)
         return page
+
+    # Jace OS settings that "Reset settings" removes (yours only). Your files, apps, Jace account
+    # and the "you've seen this" notes (welcome, migrations) stay.
+    RESET_PATHS = ["~/.config/labwc", "~/.config/waybar", "~/.config/mako", "~/.config/gtklock",
+                   "~/.config/fuzzel", "~/.cache/jace-os"]
+    RESET_KEEP = {"welcome-done", "my-apps-seeded", "migrated-jace-browser", "hide-replaced-apps"}
+
+    def _reset_settings(self):
+        d = Adw.AlertDialog(heading="Reset your settings?",
+                            body="Your top bar, start menu, windows, keyboard shortcuts, wallpaper and look go "
+                                 "back to how Jace OS started. Your files, apps and Jace account aren't touched. "
+                                 "You'll be signed out.")
+        d.add_response("cancel", "Cancel")
+        d.add_response("reset", "Reset and sign out")
+        d.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.set_default_response("cancel")
+
+        def reset(_d, response):
+            if response != "reset":
+                return
+            for path in self.RESET_PATHS:
+                shutil.rmtree(Path(path).expanduser(), ignore_errors=True)
+            for f in config_dir().iterdir():
+                if f.name not in self.RESET_KEEP:
+                    shutil.rmtree(f, ignore_errors=True) if f.is_dir() else f.unlink(missing_ok=True)
+            subprocess.run(["dconf", "reset", "-f", "/org/gnome/desktop/"], capture_output=True)
+            spawn(["labwc", "--exit"])
+        d.connect("response", reset)
+        d.present(self)
+
+    def _factory_reset(self):
+        d = Adw.AlertDialog(heading="Remove everything?",
+                            body="Every account on this computer and all of its files (documents, pictures, "
+                                 "downloads) are deleted, along with saved Wi-Fi networks and face unlock. Apps "
+                                 "stay installed. The computer restarts and Setup starts, like a new computer.\n\n"
+                                 "Back up anything you want to keep first. This can't be undone.")
+        d.add_response("cancel", "Cancel")
+        d.add_response("reset", "Remove everything and restart")
+        d.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.set_default_response("cancel")
+
+        def reset(_d, response):
+            if response != "reset":
+                return
+            background(lambda: ok(["pkexec", "/usr/lib/jace-os/factory-reset", "schedule"], timeout=120),
+                       lambda res: self.toast("Restarting to reset this computer…" if res is True
+                                              else "The reset didn't start"))
+        d.connect("response", reset)
+        d.present(self)
 
 
 class SettingsApp(Adw.Application):

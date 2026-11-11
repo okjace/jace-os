@@ -3,8 +3,11 @@
 # with its choices as JSON on stdin:
 #
 #   {"disk": "/dev/nvme0n1", "encrypt": false, "disk_password": "",
-#    "fullname": "Jace", "username": "jace", "password": "...", "hostname": "jace-pc",
-#    "autologin": false, "locale": "en_US.UTF-8", "keyboard": "us", "timezone": "America/New_York"}
+#    "locale": "en_US.UTF-8", "keyboard": "us", "timezone": "America/New_York"}
+#
+# With no "username", Setup (jace-setup) asks for the language, Wi-Fi, time zone and account
+# the first time the computer starts. Giving "fullname", "username", "password", "hostname"
+# and "autologin" makes the account here instead (for scripted installs).
 #
 # It prints "@progress <percent> <what it's doing>" lines for the installer's progress
 # bar, and everything else as the log. EVERYTHING ON THE DISK IS ERASED.
@@ -35,9 +38,17 @@ keyboard=$(get keyboard)
 timezone=$(get timezone)
 
 [ -b "$disk" ] || fail "There's no disk called $disk."
-[[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || fail "That username isn't valid."
+# No account given: Setup makes it the first time the computer starts.
+setup=no
+[ -z "$username" ] && setup=yes
+if [ "$setup" = no ]; then
+  [[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || fail "That username isn't valid."
+  [ -n "$password" ] || fail "Choose a password."
+fi
+[ -n "$hostname" ] || hostname=jace-os
 [[ "$hostname" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || fail "That computer name isn't valid."
-[ -n "$password" ] || fail "Choose a password."
+[ -n "$locale" ] || locale=en_US.UTF-8
+[ -n "$keyboard" ] || keyboard=us
 [ -e "/usr/share/zoneinfo/$timezone" ] || timezone=UTC
 [ "$encrypt" != true ] || [ -n "$disk_password" ] || fail "Choose a password for the encrypted disk."
 # Never touch the USB stick Jace OS is running from.
@@ -156,21 +167,27 @@ hwclock --systohc || true
 systemctl enable systemd-timesyncd.service >/dev/null 2>&1 || true
 CHROOT
 
-progress 84 "Creating your account"
-arch-chroot "$target" useradd -m -G wheel,video,audio,input,network -s /bin/bash -c "$fullname" "$username"
-printf '%s:%s\n' "$username" "$password" | arch-chroot "$target" chpasswd
 arch-chroot "$target" passwd -l root >/dev/null
 echo '%wheel ALL=(ALL:ALL) ALL' > "$target/etc/sudoers.d/10-wheel"
 chmod 440 "$target/etc/sudoers.d/10-wheel"
-# The keyboard layout for the desktop (labwc), same as Settings → Keyboard writes.
-home="$target/home/$username"
-install -d "$home/.config/labwc"
-echo "XKB_DEFAULT_LAYOUT=$keyboard" > "$home/.config/labwc/environment"
-arch-chroot "$target" chown -R "$username:$username" "/home/$username/.config"
-# Desktop, Documents, Downloads, Music, Pictures, Videos… ready from the first sign-in.
-arch-chroot "$target" runuser -u "$username" -- xdg-user-dirs-update || true
-if [ "$autologin" = true ]; then
-  printf '\n[initial_session]\ncommand = "jace-session"\nuser = "%s"\n' "$username" >> "$target/etc/greetd/jace-os.toml"
+if [ "$setup" = yes ]; then
+  progress 84 "Getting Setup ready for the first start"
+  install -d "$target/var/lib/jace-os"
+  touch "$target/var/lib/jace-os/setup-pending"
+else
+  progress 84 "Creating your account"
+  arch-chroot "$target" useradd -m -G wheel,video,audio,input,network -s /bin/bash -c "$fullname" "$username"
+  printf '%s:%s\n' "$username" "$password" | arch-chroot "$target" chpasswd
+  # The keyboard layout for the desktop (labwc), same as Settings → Keyboard writes.
+  home="$target/home/$username"
+  install -d "$home/.config/labwc"
+  echo "XKB_DEFAULT_LAYOUT=$keyboard" > "$home/.config/labwc/environment"
+  arch-chroot "$target" chown -R "$username:$username" "/home/$username/.config"
+  # Desktop, Documents, Downloads, Music, Pictures, Videos… ready from the first sign-in.
+  arch-chroot "$target" runuser -u "$username" -- xdg-user-dirs-update || true
+  if [ "$autologin" = true ]; then
+    printf '\n[initial_session]\ncommand = "jace-session"\nuser = "%s"\n' "$username" >> "$target/etc/greetd/jace-os.toml"
+  fi
 fi
 
 progress 87 "Setting up the boot splash and the start-up files"

@@ -1,0 +1,123 @@
+/* Setup (jaceos/setup.py): the first-start experience. Lots of gentle motion:
+   a drifting aurora behind everything, pages that slide, parts that rise in one after
+   another, greetings that crossfade, a floating logo, and a logo that pops in at the end. */
+
+/* --- the background ------------------------------------------------------------------------ */
+.js-window { background-color: #070b0d; }
+.js-bg {
+  background-color: #070b0d;
+  background-image:
+    radial-gradient(circle farthest-side at 18% 22%, rgba(61, 220, 132, 0.34), transparent),
+    radial-gradient(circle farthest-side at 82% 78%, rgba(31, 157, 90, 0.30), transparent),
+    radial-gradient(circle farthest-side at 60% 8%, rgba(56, 132, 255, 0.16), transparent);
+  background-size: 140% 140%, 150% 150%, 120% 120%;
+  animation: js-aurora 22s ease-in-out infinite alternate;
+}
+@keyframes js-aurora {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 0%; }
+  50%  { background-position: 60% 30%, 30% 70%, 20% 40%; }
+  100% { background-position: 100% 80%, 0% 20%, 80% 10%; }
+}
+/* After you pick Light on the look page. */
+.js-window.js-light, .js-window.js-light .js-bg { background-color: #f4f7f5; }
+.js-window.js-light .js-bg {
+  background-image:
+    radial-gradient(circle farthest-side at 18% 22%, rgba(61, 220, 132, 0.30), transparent),
+    radial-gradient(circle farthest-side at 82% 78%, rgba(31, 157, 90, 0.18), transparent),
+    radial-gradient(circle farthest-side at 60% 8%, rgba(56, 132, 255, 0.12), transparent);
+}
+
+/* The Jace green for buttons, switches and focus rings. */
+:root {
+  --accent-bg-color: #1f9d5a;
+  --accent-fg-color: #ffffff;
+  --accent-color: #3ddc84;
+}
+.js-window.js-light { --accent-color: #157a43; }
+
+/* --- text ---------------------------------------------------------------------------------- */
+.js-hello { font-size: 76px; font-weight: 800; letter-spacing: -1px; margin: 10px 0; }
+.js-title { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; }
+.js-big-title { font-size: 46px; }
+.js-sub { font-size: 16px; opacity: 0.72; }
+.js-hint { opacity: 0.55; animation: js-breathe 2.6s ease-in-out infinite; }
+.js-clock { font-size: 22px; font-weight: 700; color: #3ddc84; }
+.js-icon { color: #3ddc84; }
+.js-ok { color: #3ddc84; animation: js-pop 520ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+
+/* --- buttons and lists --------------------------------------------------------------------- */
+.js-big { min-width: 240px; min-height: 52px; font-size: 17px; font-weight: 700;
+          transition: transform 160ms ease, opacity 200ms ease, background-color 160ms ease; }
+.js-big:hover { transform: scale(1.03); }
+.js-big:active { transform: scale(0.97); }
+.js-big:disabled { opacity: 0.45; }
+.js-back { min-width: 44px; min-height: 44px; transition: opacity 300ms ease; }
+.js-list { border-radius: 16px; }
+.js-list row { transition: background-color 150ms ease; }
+.js-scroll { border-radius: 16px; }
+.js-search { min-height: 44px; border-radius: 14px; }
+.js-check { color: #3ddc84; transition: opacity 200ms ease; }
+.js-check.js-pop { animation: js-pop 380ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.js-avatar { margin-bottom: 6px; transition: transform 300ms ease; }
+
+/* --- progress dots: the current step grows into a pill ------------------------------------- */
+.js-dot { min-width: 8px; min-height: 8px; border-radius: 999px; background-color: alpha(currentColor, 0.25);
+          transition: min-width 400ms cubic-bezier(0.2, 0.9, 0.25, 1), background-color 400ms ease; }
+.js-dot-done { background-color: alpha(#3ddc84, 0.55); }
+.js-dot-on { min-width: 28px; background-color: #3ddc84; }
+
+/* --- the look page ------------------------------------------------------------------------- */
+.js-tile { padding: 10px; border-radius: 22px; border: 3px solid transparent;
+           transition: transform 260ms cubic-bezier(0.2, 0.9, 0.25, 1), border-color 200ms ease; }
+.js-tile:hover { transform: scale(1.03); }
+.js-tile-on { border-color: #3ddc84; transform: scale(1.05); }
+.js-preview { min-width: 220px; min-height: 140px; border-radius: 14px; padding: 8px; }
+.js-preview-light { background-color: #e9edeb; }
+.js-preview-dark { background-color: #15181d; }
+.js-pv-bar { min-height: 10px; border-radius: 6px; background-color: alpha(#3ddc84, 0.8); }
+.js-pv-window { border-radius: 8px; }
+.js-preview-light .js-pv-window { background-color: #ffffff; }
+.js-preview-dark .js-pv-window { background-color: #23272e; }
+.js-pv-side { min-width: 56px; border-radius: 8px 0 0 8px; }
+.js-preview-light .js-pv-side { background-color: #f1f3f2; }
+.js-preview-dark .js-pv-side { background-color: #1b1e24; }
+
+.js-progress trough { min-height: 8px; border-radius: 999px; background-color: alpha(currentColor, 0.12); }
+.js-progress progress { min-height: 8px; border-radius: 999px; background-color: #3ddc84; }
+
+/* --- entrances ----------------------------------------------------------------------------- */
+/* Each part of a page rises and fades in a little after the one before it. */
+.js-page .js-in { opacity: 0; }
+.js-page.js-play .js-in { animation: js-rise 750ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.js-page.js-play .js-d1 { animation-delay: 60ms; }
+.js-page.js-play .js-d2 { animation-delay: 160ms; }
+.js-page.js-play .js-d3 { animation-delay: 260ms; }
+.js-page.js-play .js-d4 { animation-delay: 360ms; }
+.js-page.js-play .js-d5 { animation-delay: 460ms; }
+.js-page.js-play .js-d6 { animation-delay: 560ms; }
+@keyframes js-rise {
+  from { opacity: 0; transform: translateY(28px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.js-float { animation: js-float 4.5s ease-in-out infinite; }
+@keyframes js-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+@keyframes js-breathe {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.8; }
+}
+@keyframes js-pop {
+  0%   { opacity: 0; transform: scale(0.4); }
+  70%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* The logo on the last page pops in with a bounce, after the page has slid in. */
+.js-page.js-play .js-popin { animation: js-popin 1100ms cubic-bezier(0.2, 1.5, 0.35, 1) 150ms both; }
+@keyframes js-popin {
+  0%   { opacity: 0; transform: scale(0.3) rotate(-12deg); }
+  60%  { opacity: 1; transform: scale(1.12) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}

@@ -1,0 +1,124 @@
+#!/bin/bash
+# Applies what you chose in Setup (jace-setup), the first time Jace OS starts. Runs as root
+# through pkexec; the jace-setup user may run it without a password (polkit rule), and it
+# only works while setup is pending (/var/lib/jace-os/setup-pending), so it can't be used
+# once your computer is set up.
+#
+#   setup-backend wifi     {"ssid": "...", "password": "..."} on stdin: join a Wi-Fi network
+#   setup-backend finish   {"locale", "keyboard", "timezone", "fullname", "username",
+#                           "password", "hostname", "dark"} on stdin: make your account and
+#                           apply everything, then sign you in
+#
+# finish prints "@progress <percent> <what it's doing>" lines, then "@done" or "@error <why>".
+set -euo pipefail
+
+PENDING=/var/lib/jace-os/setup-pending
+progress() { echo "@progress $1 $2"; }
+fail() { echo "@error $*"; exit 1; }
+
+[ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
+case "${1:-}" in wifi|finish) [ -e "$PENDING" ] || fail "Setup has already been done." ;; esac
+
+config=$(cat)
+get() { python3 -c 'import json,sys; v=json.loads(sys.argv[1]).get(sys.argv[2], ""); print(str(v).lower() if isinstance(v, bool) else v)' "$config" "$1"; }
+
+case "${1:-}" in
+  wifi)
+    ssid=$(get ssid)
+    password=$(get password)
+    [ -n "$ssid" ] || fail "Choose a network."
+    if [ -z "$password" ]; then
+      nmcli device wifi connect "$ssid" >/dev/null 2>&1 || fail "Couldn't join $ssid."
+    else
+      # A NetworkManager connection file readable only by root, so the password is never on
+      # a command line.
+      [[ "$ssid" != *$'\n'* && "$password" != *$'\n'* ]] || fail "That network name or password isn't valid."
+      file=/etc/NetworkManager/system-connections/jace-setup-$(date +%s).nmconnection
+      umask 077
+      printf '[connection]\nid=%s\ntype=wifi\nautoconnect=true\n\n[wifi]\nmode=infrastructure\nssid=%s\n\n[wifi-security]\nkey-mgmt=wpa-psk\npsk=%s\n\n[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n' \
+        "$ssid" "$ssid" "$password" > "$file"
+      nmcli connection load "$file" >/dev/null 2>&1 || nmcli connection reload >/dev/null 2>&1 || true
+      if ! nmcli --wait 30 connection up id "$ssid" >/dev/null 2>&1; then
+        rm -f "$file"
+        nmcli connection reload >/dev/null 2>&1 || true
+        fail "Couldn't join $ssid. Check the password."
+      fi
+    fi
+    echo "@done" ;;
+
+  finish)
+    locale=$(get locale)
+    keyboard=$(get keyboard)
+    timezone=$(get timezone)
+    fullname=$(get fullname)
+    username=$(get username)
+    password=$(get password)
+    hostname=$(get hostname)
+    dark=$(get dark)
+    [[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || fail "That username isn't valid."
+    case "$username" in root|jace-setup|jace-live|greeter|clamav|nobody) fail "Choose a different username." ;; esac
+    getent passwd "$username" >/dev/null && fail "There's already an account called $username."
+    [[ "$hostname" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || hostname=jace-os
+    [ -n "$password" ] || fail "Choose a password."
+    [[ "$keyboard" =~ ^[a-z]{2,6}$ ]] || keyboard=us
+    [[ "$locale" =~ ^[a-zA-Z_]+\.UTF-8$ ]] || locale=en_US.UTF-8
+    [ -e "/usr/share/zoneinfo/$timezone" ] && [[ "$timezone" != *..* ]] || timezone=UTC
+
+    progress 10 "Setting your language"
+    sed -i "s/^#\(${locale//./\\.} \)/\1/" /etc/locale.gen
+    grep -q "^en_US.UTF-8" /etc/locale.gen || sed -i 's/^#\(en_US\.UTF-8 \)/\1/' /etc/locale.gen
+    locale-gen >/dev/null 2>&1 || true
+    echo "LANG=$locale" > /etc/locale.conf
+
+    progress 35 "Setting your keyboard and time zone"
+    console=$keyboard
+    case "$keyboard" in gb) console=uk ;; latam) console=la-latin1 ;; ara|in|cn|jp|kr|il|gr|ru|ua) console=us ;; esac
+    old_console=$(sed -n 's/^KEYMAP=//p' /etc/vconsole.conf 2>/dev/null || true)
+    echo "KEYMAP=$console" > /etc/vconsole.conf
+    mkdir -p /etc/X11/xorg.conf.d
+    printf 'Section "InputClass"\n  Identifier "system-keyboard"\n  MatchIsKeyboard "on"\n  Option "XkbLayout" "%s"\nEndSection\n' \
+      "$keyboard" > /etc/X11/xorg.conf.d/00-keyboard.conf
+    ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime
+    hwclock --systohc >/dev/null 2>&1 || true
+    echo "$hostname" > /etc/hostname
+    hostname "$hostname" 2>/dev/null || true
+    printf '127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s.localdomain %s\n' "$hostname" "$hostname" > /etc/hosts
+    # An encrypted disk asks for its password before the desktop starts, with the keyboard
+    # layout in the start-up files: make them again (in the background) if it changed.
+    if grep -q "cryptdevice=" /proc/cmdline && [ "$old_console" != "$console" ]; then
+      systemd-run --unit=jace-setup-mkinitcpio --quiet mkinitcpio -P >/dev/null 2>&1 || true
+    fi
+
+    progress 60 "Making your account"
+    useradd -m -G wheel,video,audio,input,network -s /bin/bash -c "$fullname" "$username"
+    printf '%s:%s\n' "$username" "$password" | chpasswd
+    home=$(getent passwd "$username" | cut -d: -f6)
+    install -d -o "$username" -g "$username" "$home/.config/labwc" "$home/.config/jace-os"
+    echo "XKB_DEFAULT_LAYOUT=$keyboard" > "$home/.config/labwc/environment"
+    chown "$username:$username" "$home/.config/labwc/environment"
+    runuser -u "$username" -- env HOME="$home" LANG="$locale" xdg-user-dirs-update >/dev/null 2>&1 || true
+
+    progress 80 "Choosing your look"
+    scheme=prefer-dark theme=adw-gtk3-dark
+    [ "$dark" = false ] && scheme=default theme=adw-gtk3
+    runuser -u "$username" -- env HOME="$home" dbus-run-session sh -c \
+      "gsettings set org.gnome.desktop.interface color-scheme $scheme; gsettings set org.gnome.desktop.interface gtk-theme $theme" \
+      >/dev/null 2>&1 || true
+
+    progress 95 "Finishing up"
+    rm -f "$PENDING"
+    # Sign straight in to the new account this once (greetd-start uses this file one time).
+    mkdir -p /run/jace-os
+    sed -n '1,/^\[initial_session\]/p' /etc/greetd/jace-os.toml | sed '/^\[initial_session\]/d' > /run/jace-os/greetd-once.toml
+    printf '\n[initial_session]\ncommand = "jace-session"\nuser = "%s"\n' "$username" >> /run/jace-os/greetd-once.toml
+    progress 100 "Done"
+    echo "@done" ;;
+
+  signin)
+    # After "Get started": restart the login screen, which signs you in (see finish).
+    [ -e /run/jace-os/greetd-once.toml ] || fail "Setup isn't finished."
+    systemd-run --on-active=1 --quiet systemctl restart greetd.service ;;
+
+  *)
+    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

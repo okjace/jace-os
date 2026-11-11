@@ -1,0 +1,7 @@
+// Setup (the jace-setup user, first start only) applies your choices without a password:
+// setup-backend itself refuses to do anything once the computer is set up.
+polkit.addRule(function (action, subject) {
+  if (action.id == "org.jaceos.setup" && subject.user == "jace-setup" && subject.local) {
+    return polkit.Result.YES;
+  }
+});

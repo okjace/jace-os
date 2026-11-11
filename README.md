@@ -18,6 +18,8 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **Virus protection** ([ClamAV](https://www.clamav.net)): real-time protection scans files in home folders as soon as they're downloaded, created or opened, and moves threats to quarantine. Every home folder is also scanned once a day, and virus signatures update by themselves. Settings → Virus protection has quick, full and folder scans, the quarantine (restore or delete) and switches for all of it. You get an alert whenever something is found. Real-time protection uses about 1 GB of memory, and you can turn it off.
 - **Storage**: Settings → Storage shows how full each drive is and what's using space, and frees it up: the trash, old package downloads, AUR build files, picture previews, unused packages and Flatpak runtimes. It can empty old trash by itself and warns you when a drive is almost full.
 - **Menus that match**: right-click the desktop for the Jace OS menu, and every GTK app's menus (right-click, ⋮ and tray menus) get the Jace green and rounder, roomier items.
+- **Languages**: Setup and Settings → Language switch the whole computer to 32 languages. Setup itself is translated into 18 so far (right to left for Arabic and Hebrew), and GNOME apps, Jace Browser and most others follow the system language.
+- **Reset this computer**: Settings → About can reset just your settings, or remove every account and its files and start Setup again, like a new computer. Apps stay installed.
 - **Clipboard manager**: Win+V shows everything you copied, pictures included. Search it, pin things to keep them, and click to paste.
 - **A top bar you can change**: Settings → Top bar turns modules on and off (Now Playing, weather, processor, memory, Do not disturb, Keep awake and more), moves it to the bottom, and sets the clock (12 or 24 hours, seconds, date). Click the clock (or Win+N) for the calendar.
 - **Face unlock**: Settings → Face unlock sets up Howdy, the Linux Windows Hello, for the lock screen, sign-in and password prompts. Best with an infrared camera.
@@ -56,13 +58,9 @@ Change any of these, turn them off, or add your own in Settings → Keyboard sho
    - **Try Jace OS (without installing)**: the full desktop running from the USB stick. Nothing on the computer changes.
    - **Install Jace OS**: the same, with the installer opened right away.
    - **Try Jace OS (safe graphics)**: if the screen stays black or flickers.
-3. Click **Install Jace OS** (in the welcome app, or the start menu). The installer asks for:
-   - your language, keyboard and time zone
-   - the disk to install on (it's erased), with optional encryption
-   - your name, username, computer name and password
-
-   Then it installs Jace OS, with the newest Jace apps and Jace Browser, in 10 to 20 minutes. You need an internet connection.
-4. To keep Windows or another system alongside, or to pick your own partitions, use **Advanced install** on the installer's first page. It opens archinstall with the Jace OS preset.
+3. Click **Install Jace OS** (in the welcome app, or the start menu) and pick the disk to install on (it's erased), with optional encryption. It installs Jace OS, with the newest Jace apps and Jace Browser, in 10 to 20 minutes. You need an internet connection.
+4. Restart and take out the USB stick. **Setup** starts: an animated, phone-style welcome where you pick your language, keyboard, Wi-Fi, time zone and look, and make your account. Then you're signed straight in.
+5. To keep Windows or another system alongside, or to pick your own partitions, use **Advanced install** on the installer's first page. It opens archinstall with the Jace OS preset.
 
 ### Already on Arch
 

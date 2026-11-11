@@ -1,7 +1,8 @@
-// Administrators (the wheel group) can install updates and manage virus protection
-// from Settings without typing a password.
+// Administrators (the wheel group) can install updates, manage virus protection and change
+// the language from Settings without typing a password.
 polkit.addRule(function (action, subject) {
-  if ((action.id == "org.jaceos.update" || action.id == "org.jaceos.antivirus") &&
+  if ((action.id == "org.jaceos.update" || action.id == "org.jaceos.antivirus" ||
+       action.id == "org.jaceos.language") &&
       subject.active && subject.local && subject.isInGroup("wheel")) {
     return polkit.Result.YES;
   }
