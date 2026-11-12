@@ -9,6 +9,9 @@ with /usr/lib/jace-os/setup-backend, then signs you in.
 
   jace-setup          run it
   jace-setup --demo   try it without changing anything (no account is made)
+
+On a computer that's already set up, it always runs as the demo: Setup only does anything
+for real the first time Jace OS starts (or after a factory reset).
 """
 import json
 import os
@@ -16,6 +19,7 @@ import re
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 import gi
 
@@ -28,7 +32,9 @@ from jaceos.i18n import _  # noqa: E402
 from jaceos.installer import KEYBOARDS, LOCALES, current_timezone  # noqa: E402
 
 BACKEND = str(ROOT / "usr/lib/jace-os/setup-backend")
-DEMO = "--demo" in sys.argv
+# The real thing only while the computer is waiting to be set up; any other time it's the demo,
+# so opening it by hand (even as "jace-setup demo") never asks for your password.
+DEMO = bool({"--demo", "demo"} & set(sys.argv[1:])) or not Path("/var/lib/jace-os/setup-pending").exists()
 
 HELLOS = ["Hello", "Hola", "Bonjour", "Hallo", "Ciao", "Olá", "Hej", "Merhaba", "Привет", "こんにちは",
           "안녕하세요", "你好", "नमस्ते", "مرحبا", "Γεια σας", "Cześć"]
