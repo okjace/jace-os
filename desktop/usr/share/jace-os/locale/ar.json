@@ -51,5 +51,14 @@
  "Making your account": "جارٍ إنشاء حسابك",
  "Choosing your look": "جارٍ تطبيق المظهر",
  "Finishing up": "جارٍ الإنهاء",
- "Done": "تم"
+ "Done": "تم",
+ "Sign in with Jace": "تسجيل الدخول باستخدام Jace",
+ "Not now": "ليس الآن",
+ "Connect to the internet to sign in, or sign in later in Settings.": "اتصل بالإنترنت لتسجيل الدخول، أو سجّل الدخول لاحقًا من الإعدادات.",
+ "Signing in…": "جارٍ تسجيل الدخول…",
+ "Use a different account": "استخدام حساب آخر",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "يأتي اسمك وصورتك من حساب Jace، ويسجّل Jace Launcher وJace Social وJace Store الدخول تلقائيًا.",
+ "Couldn't sign in.": "تعذّر تسجيل الدخول.",
+ "Signed in as {}": "تم تسجيل الدخول باسم {}",
+ "Signing in to Jace": "جارٍ تسجيل الدخول إلى Jace"
 }

@@ -1,7 +1,8 @@
 """Setup: the first thing you see when Jace OS starts for the first time (and after a
 factory reset). Full screen, like setting up a phone:
 
-  Hello → Language → Keyboard → Wi-Fi → Time zone → Your account → Look → Setting up → Welcome
+  Hello → Language → Keyboard → Wi-Fi → Jace account → Time zone → Your account → Look →
+  Setting up → Welcome
 
 Picking a language switches Setup to it right away (jaceos/i18n.py). It runs as the
 jace-setup user in cage (see /usr/share/jace-os/greetd/setup.toml) and applies your choices
@@ -13,6 +14,7 @@ with /usr/lib/jace-os/setup-backend, then signs you in.
 On a computer that's already set up, it always runs as the demo: Setup only does anything
 for real the first time Jace OS starts (or after a factory reset).
 """
+import base64
 import json
 import os
 import re
@@ -27,7 +29,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from jaceos import LOGO, ROOT, SHARE, i18n, run  # noqa: E402
+from jaceos import LOGO, ROOT, SHARE, account, i18n, run, spawn  # noqa: E402
 from jaceos.i18n import _  # noqa: E402
 from jaceos.installer import KEYBOARDS, LOCALES, current_timezone  # noqa: E402
 
@@ -58,8 +60,8 @@ KEYBOARD_GUESS = {"en_US": "us", "en_GB": "gb", "en_CA": "us", "en_AU": "us", "d
                   "uk_UA": "ua", "ar_EG": "ara", "he_IL": "il", "hi_IN": "in", "ja_JP": "jp", "ko_KR": "kr",
                   "zh_CN": "cn", "zh_TW": "cn"}
 
-ORDER = ["hello", "language", "keyboard", "wifi", "timezone", "account", "look", "working", "welcome"]
-DOTS = ORDER[1:7]          # the pages that get a progress dot
+ORDER = ["hello", "language", "keyboard", "wifi", "jace", "timezone", "account", "look", "working", "welcome"]
+DOTS = ORDER[1:ORDER.index("working")]          # the pages that get a progress dot
 
 
 def backend(command: str, data: dict, on_line=None) -> tuple[bool, str]:
@@ -466,6 +468,132 @@ class SetupWindow(Adw.ApplicationWindow):
                 self.wifi_state.set_visible_child_name("list")
         in_thread(lambda: backend("wifi", {"ssid": ssid, "password": password}), done)
 
+    def page_jace(self):
+        """Sign in with Jace: Jace's sign-in page opens right here (a private web view that keeps
+        nothing). Your Jace name and picture become your account's, and the Jace apps sign in
+        by themselves once you're on the desktop."""
+        self.jace_state = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, transition_duration=400,
+                                    vhomogeneous=False, interpolate_size=True)
+        intro = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        sign = Gtk.Button(label=_("Sign in with Jace"), css_classes=["pill", "suggested-action", "js-big"],
+                          halign=Gtk.Align.CENTER)
+        sign.connect("clicked", lambda *_a: self.jace_sign_in())
+        intro.append(sign)
+        later = Gtk.Button(label=_("Not now"), css_classes=["flat", "pill"], halign=Gtk.Align.CENTER)
+        later.connect("clicked", lambda *_a: self.go(1))
+        intro.append(later)
+        self.jace_state.add_named(intro, "intro")
+
+        offline = Gtk.Label(label=_("Connect to the internet to sign in, or sign in later in Settings."),
+                            css_classes=["dim-label"], wrap=True, justify=Gtk.Justification.CENTER)
+        self.jace_state.add_named(offline, "offline")
+
+        self.jace_web_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        cancel = Gtk.Button(label=_("Cancel"), css_classes=["flat", "pill"], halign=Gtk.Align.CENTER)
+        cancel.connect("clicked", lambda *_a: self.jace_cancel())
+        self.jace_web_box.append(cancel)
+        self.jace_state.add_named(self.jace_web_box, "web")
+
+        wait = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        wait.append(spinner(48))
+        wait.append(Gtk.Label(label=_("Signing in…"), css_classes=["dim-label"]))
+        self.jace_state.add_named(wait, "wait")
+
+        done = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.jace_avatar = Adw.Avatar(size=96, show_initials=True, halign=Gtk.Align.CENTER, css_classes=["js-ok"])
+        self.jace_who = Gtk.Label(css_classes=["title-3"], wrap=True, justify=Gtk.Justification.CENTER)
+        self.jace_handle = Gtk.Label(css_classes=["dim-label"])
+        switch = Gtk.Button(label=_("Use a different account"), css_classes=["flat", "pill"],
+                            halign=Gtk.Align.CENTER, margin_top=6)
+        switch.connect("clicked", lambda *_a: (setattr(self, "jace", None), self.jace_sign_in()))
+        for w in (self.jace_avatar, self.jace_who, self.jace_handle, switch):
+            done.append(w)
+        self.jace_state.add_named(done, "done")
+        self.title_jace = self.title(_("Sign in with Jace"),
+                                     _("Your name and picture come from your Jace account, and Jace Launcher, "
+                                       "Jace Social and Jace Store sign in by themselves."),
+                                     "avatar-default-symbolic")
+        if getattr(self, "jace", None):
+            self.show_jace(self.jace)
+        return self.page_box(self.title_jace, self.jace_state, width=640)
+
+    def enter_jace(self):
+        if getattr(self, "jace", None):
+            return
+        self.jace_state.set_visible_child_name("wait")
+        in_thread(lambda: DEMO or online(),
+                  lambda up: self.jace_state.set_visible_child_name("intro" if up else "offline"))
+
+    def jace_sign_in(self):
+        self.jace_cancelled = False
+        self.title_jace.set_visible(False)
+        web = None
+        try:
+            gi.require_version("WebKit", "6.0")
+            from gi.repository import WebKit
+            # Private: nothing (cookies, history) is kept after Setup.
+            web = WebKit.WebView(network_session=WebKit.NetworkSession.new_ephemeral(), vexpand=True,
+                                 width_request=620, height_request=480, css_classes=["js-web"])
+            self.jace_web_box.prepend(web)
+            self.jace_view = web
+            self.jace_state.set_visible_child_name("web")
+        except (ValueError, ImportError):
+            self.jace_state.set_visible_child_name("wait")
+
+        def open_url(url):
+            if web is not None:
+                GLib.idle_add(lambda: (web.load_uri(url), False)[1])
+            else:
+                spawn(["xdg-open", url])           # no web view: a browser window instead
+
+        def done(result):
+            if getattr(self, "jace_view", None) is not None:
+                self.jace_web_box.remove(self.jace_view)
+                self.jace_view = None
+            self.title_jace.set_visible(True)
+            if isinstance(result, Exception):
+                if not self.jace_cancelled:
+                    self.toasts.add_toast(Adw.Toast(title=str(result) or _("Couldn't sign in."), timeout=4))
+                self.jace_state.set_visible_child_name("intro")
+                return
+            self.jace = result
+            self.show_jace(result)
+
+        def work():
+            try:
+                return account.sign_in(open_url=open_url, save=False, cancelled=lambda: self.jace_cancelled)
+            except Exception as e:  # noqa: BLE001 - shown to you, and you can try again
+                return e
+        in_thread(work, done)
+
+    def jace_cancel(self):
+        self.jace_cancelled = True
+        self.jace_state.set_visible_child_name("wait")
+
+    def show_jace(self, acct):
+        user = acct.get("user", {})
+        name = account.display_name(acct)
+        self.jace_avatar.set_text(name)
+        texture = self.jace_texture(acct)
+        self.jace_avatar.set_custom_image(texture)
+        self.jace_who.set_label(_("Signed in as {}").format(name))
+        self.jace_handle.set_label("@" + user["username"] if user.get("username") else "")
+        self.jace_state.set_visible_child_name("done")
+        # Your Jace name becomes your name here (until you type your own).
+        if not self.fullname.get_text().strip():
+            self.fullname.set_text(name)
+        if texture:
+            self.avatar.set_custom_image(texture)
+
+    @staticmethod
+    def jace_texture(acct):
+        if not acct or not acct.get("avatar"):
+            return None
+        try:
+            return Gdk.Texture.new_from_bytes(GLib.Bytes.new(acct["avatar"]))
+        except GLib.Error:
+            return None
+
     def page_timezone(self):
         zones = run(["timedatectl", "list-timezones"]).split() or ["UTC"]
         self.zone_search = Gtk.SearchEntry(placeholder_text=_("Search for a city or region"),
@@ -519,6 +647,9 @@ class SetupWindow(Adw.ApplicationWindow):
         self.account_hint = Gtk.Label(css_classes=["js-sub", "caption"], wrap=True)
         for r, text in typed.items():
             getattr(self, r).set_text(text)
+        texture = self.jace_texture(getattr(self, "jace", None))
+        if texture:
+            self.avatar.set_custom_image(texture)
         return self.page_box(self.title(_("Make your account"), _("You'll use it to sign in to this computer.")),
                              self.avatar, g, self.account_hint)
 
@@ -599,6 +730,10 @@ class SetupWindow(Adw.ApplicationWindow):
     def finish(self):
         data = dict(self.choice, fullname=self.fullname.get_text().strip(), username=self.username.get_text(),
                     password=self.pw.get_text(), hostname=self.hostname.get_text())
+        if getattr(self, "jace", None):
+            acct = {k: v for k, v in self.jace.items() if k != "avatar"}
+            data["jace"] = {"account": acct,
+                            "avatar": base64.b64encode(self.jace.get("avatar") or b"").decode()}
         self.work_retry.set_visible(False)
         self.work_bar.set_fraction(0.02)
 

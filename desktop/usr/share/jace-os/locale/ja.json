@@ -51,5 +51,14 @@
  "Making your account": "アカウントを作成しています",
  "Choosing your look": "外観を適用しています",
  "Finishing up": "仕上げています",
- "Done": "完了"
+ "Done": "完了",
+ "Sign in with Jace": "Jace でサインイン",
+ "Not now": "あとで",
+ "Connect to the internet to sign in, or sign in later in Settings.": "サインインするにはインターネットに接続してください。あとで「設定」からサインインすることもできます。",
+ "Signing in…": "サインインしています…",
+ "Use a different account": "別のアカウントを使う",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "名前と写真は Jace アカウントから取り込まれ、Jace Launcher、Jace Social、Jace Store は自動でサインインします。",
+ "Couldn't sign in.": "サインインできませんでした。",
+ "Signed in as {}": "{} としてサインイン中",
+ "Signing in to Jace": "Jace にサインインしています"
 }

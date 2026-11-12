@@ -51,5 +51,14 @@
  "Making your account": "आपका खाता बनाया जा रहा है",
  "Choosing your look": "आपका रूप लागू किया जा रहा है",
  "Finishing up": "पूरा किया जा रहा है",
- "Done": "हो गया"
+ "Done": "हो गया",
+ "Sign in with Jace": "Jace से साइन इन करें",
+ "Not now": "अभी नहीं",
+ "Connect to the internet to sign in, or sign in later in Settings.": "साइन इन करने के लिए इंटरनेट से कनेक्ट करें, या बाद में सेटिंग्स में साइन इन करें।",
+ "Signing in…": "साइन इन हो रहा है…",
+ "Use a different account": "कोई दूसरा खाता इस्तेमाल करें",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "आपका नाम और फ़ोटो आपके Jace खाते से आते हैं, और Jace Launcher, Jace Social और Jace Store अपने-आप साइन इन हो जाते हैं।",
+ "Couldn't sign in.": "साइन इन नहीं हो सका।",
+ "Signed in as {}": "{} के रूप में साइन इन",
+ "Signing in to Jace": "Jace में साइन इन हो रहा है"
 }

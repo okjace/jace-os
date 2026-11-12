@@ -51,5 +51,14 @@
  "Making your account": "正在建立你的帳號",
  "Choosing your look": "正在套用外觀",
  "Finishing up": "即將完成",
- "Done": "完成"
+ "Done": "完成",
+ "Sign in with Jace": "使用 Jace 登入",
+ "Not now": "以後再說",
+ "Connect to the internet to sign in, or sign in later in Settings.": "請連上網路後登入，或稍後在「設定」中登入。",
+ "Signing in…": "正在登入…",
+ "Use a different account": "使用其他帳號",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "你的名字和照片來自你的 Jace 帳號，Jace Launcher、Jace Social 和 Jace Store 會自動登入。",
+ "Couldn't sign in.": "無法登入。",
+ "Signed in as {}": "已登入為 {}",
+ "Signing in to Jace": "正在登入 Jace"
 }

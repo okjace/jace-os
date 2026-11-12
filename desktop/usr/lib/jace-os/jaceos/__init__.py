@@ -1,7 +1,7 @@
-"""Jace OS's own apps: Settings, Welcome, the Jace account and updates.
+"""Jace OS's own apps: Settings, Setup, the Jace account and updates.
 
 They're GTK 4 + libadwaita apps written in Python. The launchers in /usr/bin
-(jace-settings, jace-welcome, jace-account, jace-updates) add this folder to
+(jace-settings, jace-setup, jace-account, jace-updates) add this folder to
 sys.path and call main() in the matching module.
 """
 import os

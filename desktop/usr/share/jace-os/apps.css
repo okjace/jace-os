@@ -1,4 +1,4 @@
-/* Shared look for the Jace OS apps (Settings, Welcome, the start menu). */
+/* Shared look for the Jace OS apps (Settings, the installer, the start menu). */
 
 @define-color accent_bg_color #1f9d5a;
 @define-color accent_color #3ddc84;
@@ -50,9 +50,6 @@
 .jw-thumb picture { border-radius: 9px; }
 .jw-current { border-color: #3ddc84; }
 
-/* --- welcome --- */
-.jw-app { padding: 16px; border-radius: 16px; min-width: 120px; }
-
 /* --- clipboard (Win+V) --- */
 .jc-list { background: transparent; }
 .jc-row { border-radius: 12px; margin: 2px 0; }
@@ -69,11 +66,11 @@
 .jm-panel { transition: opacity 180ms ease-out; }
 .jm-panel.jp-hidden { opacity: 0; }
 /* Buttons and rows ease into hover and selection. */
-.jm-app, .jc-row, .jm-account, .jm-pill, .jw-thumb, .jw-app,
+.jm-app, .jc-row, .jm-account, .jm-pill, .jw-thumb,
 .navigation-sidebar row, .boxed-list row {
   transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
-.jm-app:active, .jw-app:active { transition: background-color 60ms ease; }
+.jm-app:active { transition: background-color 60ms ease; }
 
 /* --- storage (Settings → Storage) --- */
 .js-drive { padding: 18px; border-radius: 14px; background: alpha(currentColor, 0.05); }

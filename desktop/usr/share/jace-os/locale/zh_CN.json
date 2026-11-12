@@ -51,5 +51,14 @@
  "Making your account": "正在创建你的账户",
  "Choosing your look": "正在应用外观",
  "Finishing up": "即将完成",
- "Done": "完成"
+ "Done": "完成",
+ "Sign in with Jace": "使用 Jace 登录",
+ "Not now": "以后再说",
+ "Connect to the internet to sign in, or sign in later in Settings.": "请连接互联网后登录，或稍后在“设置”中登录。",
+ "Signing in…": "正在登录…",
+ "Use a different account": "使用其他账户",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "你的名字和照片来自你的 Jace 账户，Jace Launcher、Jace Social 和 Jace Store 会自动登录。",
+ "Couldn't sign in.": "无法登录。",
+ "Signed in as {}": "已登录为 {}",
+ "Signing in to Jace": "正在登录 Jace"
 }

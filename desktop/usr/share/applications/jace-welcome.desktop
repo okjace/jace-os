@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name=Welcome to Jace OS
-Comment=Get set up: your Jace account, apps and tips
-Exec=jace-welcome
-Icon=jace-welcome
-Terminal=false
-Type=Application
-Categories=System;
-StartupWMClass=org.jaceos.Welcome

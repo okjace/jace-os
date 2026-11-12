@@ -6,8 +6,9 @@
 #
 #   setup-backend wifi     {"ssid": "...", "password": "..."} on stdin: join a Wi-Fi network
 #   setup-backend finish   {"locale", "keyboard", "timezone", "fullname", "username",
-#                           "password", "hostname", "dark"} on stdin: make your account and
-#                           apply everything, then sign you in
+#                           "password", "hostname", "dark", "jace"} on stdin: make your account
+#                           and apply everything, then sign you in. "jace" (optional) is the
+#                           Jace account you signed in to in Setup: {"account", "avatar" (base64)}
 #
 # finish prints "@progress <percent> <what it's doing>" lines, then "@done" or "@error <why>".
 set -euo pipefail
@@ -98,6 +99,30 @@ case "${1:-}" in
     runuser -u "$username" -- mkdir -p "$home/.config/labwc" "$home/.config/jace-os"
     runuser -u "$username" -- sh -c 'echo "XKB_DEFAULT_LAYOUT=$1" > "$2"' sh "$keyboard" "$home/.config/labwc/environment"
     runuser -u "$username" -- env HOME="$home" LANG="$locale" xdg-user-dirs-update >/dev/null 2>&1 || true
+
+    if python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1]).get("jace") else 1)' "$config"; then
+      progress 70 "Signing in to Jace"
+      # Written as the new person, readable only by them, where the Jace OS apps look for it.
+      printf '%s' "$config" | runuser -u "$username" -- env HOME="$home" python3 -c '
+import base64, json, os, sys
+from pathlib import Path
+jace = json.load(sys.stdin)["jace"]
+d = Path(os.environ["HOME"]) / ".local/share/jace-os"
+d.mkdir(parents=True, exist_ok=True)
+fd = os.open(d / "account.json", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as out:
+    json.dump(jace["account"], out, indent=2)
+if jace.get("avatar"):
+    (d / "avatar").write_bytes(base64.b64decode(jace["avatar"]))
+' || true
+      # Your Jace picture is your account picture (the login and lock screens show it).
+      if [ -s "$home/.local/share/jace-os/avatar" ]; then
+        user_path=$(busctl call org.freedesktop.Accounts /org/freedesktop/Accounts org.freedesktop.Accounts \
+          FindUserByName s "$username" 2>/dev/null | awk '{print $2}' | tr -d '"')
+        [ -n "$user_path" ] && busctl call org.freedesktop.Accounts "$user_path" org.freedesktop.Accounts.User \
+          SetIconFile s "$home/.local/share/jace-os/avatar" >/dev/null 2>&1 || true
+      fi
+    fi
 
     progress 80 "Choosing your look"
     scheme=prefer-dark theme=adw-gtk3-dark

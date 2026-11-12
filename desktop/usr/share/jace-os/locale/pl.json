@@ -51,5 +51,14 @@
  "Making your account": "Tworzenie konta",
  "Choosing your look": "Ustawianie wyglądu",
  "Finishing up": "Kończenie",
- "Done": "Gotowe"
+ "Done": "Gotowe",
+ "Sign in with Jace": "Zaloguj się przez Jace",
+ "Not now": "Nie teraz",
+ "Connect to the internet to sign in, or sign in later in Settings.": "Połącz się z internetem, aby się zalogować, lub zrób to później w Ustawieniach.",
+ "Signing in…": "Logowanie…",
+ "Use a different account": "Użyj innego konta",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "Twoje imię i zdjęcie pochodzą z konta Jace, a Jace Launcher, Jace Social i Jace Store zalogują się same.",
+ "Couldn't sign in.": "Nie udało się zalogować.",
+ "Signed in as {}": "Zalogowano jako {}",
+ "Signing in to Jace": "Logowanie do Jace"
 }

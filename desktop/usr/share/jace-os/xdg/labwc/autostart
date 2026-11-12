@@ -30,8 +30,8 @@ conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os"
 [ -r "$conf/displays" ] && sh "$conf/displays" >/dev/null 2>&1
 [ -e "$conf/nightlight" ] && wlsunset -t 4000 -T 6500 -S 07:00 -s 20:00 >/dev/null 2>&1 &
 
-# The welcome app (first login, and every login on the live USB).
-jace-welcome --autostart >/dev/null 2>&1 &
+# On the live USB: open the installer, or offer to (installed systems: does nothing).
+/usr/lib/jace-os/live-start >/dev/null 2>&1 &
 
 # One-time changes after an update (Jace Browser became the default browser).
 jace-migrate >/dev/null 2>&1 &

@@ -196,7 +196,7 @@
 
   <windowRules>
     <!-- Dialogs and the Jace OS helpers open in the middle of the screen. -->
-    <windowRule identifier="jace-welcome" serverDecoration="yes">
+    <windowRule identifier="org.jaceos.Installer" serverDecoration="yes">
       <action name="AutoPlace" />
     </windowRule>
     <windowRule identifier="pavucontrol"><action name="AutoPlace" /></windowRule>

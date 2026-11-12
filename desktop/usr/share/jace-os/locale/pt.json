@@ -51,5 +51,14 @@
  "Making your account": "Criando sua conta",
  "Choosing your look": "Aplicando sua aparência",
  "Finishing up": "Finalizando",
- "Done": "Pronto"
+ "Done": "Pronto",
+ "Sign in with Jace": "Entrar com o Jace",
+ "Not now": "Agora não",
+ "Connect to the internet to sign in, or sign in later in Settings.": "Conecte-se à internet para entrar, ou entre depois em Configurações.",
+ "Signing in…": "Entrando…",
+ "Use a different account": "Usar outra conta",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "Seu nome e sua foto vêm da sua conta Jace, e o Jace Launcher, o Jace Social e a Jace Store entram sozinhos.",
+ "Couldn't sign in.": "Não foi possível entrar.",
+ "Signed in as {}": "Conectado como {}",
+ "Signing in to Jace": "Entrando no Jace"
 }

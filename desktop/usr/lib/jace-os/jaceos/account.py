@@ -114,8 +114,12 @@ def _request(url: str, data: dict | None = None, token: str | None = None) -> di
         raise AccountError("Couldn't reach Jace. Check your internet connection.") from e
 
 
-def sign_in(open_url=webbrowser.open, timeout: float = 300) -> dict:
-    """Runs the whole browser sign-in and returns the saved account. Blocks until done."""
+def sign_in(open_url=webbrowser.open, timeout: float = 300, save: bool = True, cancelled=None) -> dict:
+    """Runs the whole browser sign-in and returns the saved account. Blocks until done.
+
+    save=False (Setup, before your account exists) keeps nothing on this computer and returns
+    the account with its picture as "avatar" (bytes), for Setup to give to the new account.
+    cancelled: a function returning True to stop waiting (someone pressed Cancel)."""
     cfg = settings()
     if not cfg["client_id"]:
         raise AccountError("Sign in with Jace isn't set up in this version of Jace OS yet.")
@@ -173,6 +177,8 @@ def sign_in(open_url=webbrowser.open, timeout: float = 300) -> dict:
     deadline = time.time() + timeout
     with server:
         while not result and time.time() < deadline:
+            if cancelled and cancelled():
+                raise AccountError("Sign-in cancelled.")
             server.handle_request()
     if "error" in result:
         raise AccountError(result["error"])
@@ -200,6 +206,9 @@ def sign_in(open_url=webbrowser.open, timeout: float = 300) -> dict:
         "user": user,
         "signed_in_at": time.time(),
     }
+    if not save:
+        account["avatar"] = _download(user.get("picture"))
+        return account
     _save(account)
     _fetch_avatar(user.get("picture"))
     _sync_profile(user)
@@ -232,17 +241,25 @@ def avatar_path() -> Path | None:
     return p if p.exists() else None
 
 
+def _download(url: str | None) -> bytes:
+    """Your Jace picture (at most 5 MB), or b"" if there's none or it can't be fetched."""
+    if not url:
+        return b""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.read(5 * 1024 * 1024)
+    except (urllib.error.URLError, OSError, ValueError):
+        return b""
+
+
 def _fetch_avatar(url: str | None):
     if not url:
         (data_dir() / "avatar").unlink(missing_ok=True)
         return
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req, timeout=20) as r:
-            data = r.read(5 * 1024 * 1024)
+    data = _download(url)
+    if data:
         (data_dir() / "avatar").write_bytes(data)
-    except (urllib.error.URLError, OSError, ValueError):
-        pass
 
 
 def _sync_profile(user: dict):

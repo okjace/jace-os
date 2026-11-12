@@ -51,5 +51,14 @@
  "Making your account": "Hesabın oluşturuluyor",
  "Choosing your look": "Görünümün uygulanıyor",
  "Finishing up": "Tamamlanıyor",
- "Done": "Bitti"
+ "Done": "Bitti",
+ "Sign in with Jace": "Jace ile giriş yap",
+ "Not now": "Şimdi değil",
+ "Connect to the internet to sign in, or sign in later in Settings.": "Giriş yapmak için internete bağlan veya daha sonra Ayarlar'dan giriş yap.",
+ "Signing in…": "Giriş yapılıyor…",
+ "Use a different account": "Başka bir hesap kullan",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "Adın ve fotoğrafın Jace hesabından gelir; Jace Launcher, Jace Social ve Jace Store kendiliğinden giriş yapar.",
+ "Couldn't sign in.": "Giriş yapılamadı.",
+ "Signed in as {}": "{} olarak giriş yapıldı",
+ "Signing in to Jace": "Jace'e giriş yapılıyor"
 }

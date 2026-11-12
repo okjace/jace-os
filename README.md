@@ -58,8 +58,8 @@ Change any of these, turn them off, or add your own in Settings → Keyboard sho
    - **Try Jace OS (without installing)**: the full desktop running from the USB stick. Nothing on the computer changes.
    - **Install Jace OS**: the same, with the installer opened right away.
    - **Try Jace OS (safe graphics)**: if the screen stays black or flickers.
-3. Click **Install Jace OS** (in the welcome app, or the start menu) and pick the disk to install on (it's erased), with optional encryption. It installs Jace OS, with the newest Jace apps and Jace Browser, in 10 to 20 minutes. You need an internet connection.
-4. Restart and take out the USB stick. **Setup** starts: an animated, phone-style welcome where you pick your language, keyboard, Wi-Fi, time zone and look, and make your account. Then you're signed straight in.
+3. Click **Install Jace OS** (in the notification, or the start menu) and pick the disk to install on (it's erased), with optional encryption. It installs Jace OS, with the newest Jace apps and Jace Browser, in 10 to 20 minutes. You need an internet connection.
+4. Restart and take out the USB stick. **Setup** starts: an animated, phone-style welcome where you pick your language, keyboard and Wi-Fi, sign in with Jace (your Jace name and picture become your account's), pick your time zone and look, and make your account. Then you're signed straight in.
 5. To keep Windows or another system alongside, or to pick your own partitions, use **Advanced install** on the installer's first page. It opens archinstall with the Jace OS preset.
 
 ### Already on Arch
@@ -83,7 +83,7 @@ Then choose **Jace OS** on the login screen.
 | Folder | What's in it |
 |---|---|
 | `desktop/` | Everything the `jace-os` package installs, laid out like `/`: the labwc, Waybar, mako and fuzzel configs (`usr/share/jace-os/xdg`), the Jace OS apps (`usr/lib/jace-os/jaceos`), scripts (`usr/bin`), the Plymouth theme, the login screen, wallpapers, the update timer and the installer preset. |
-| `desktop/usr/lib/jace-os/jaceos/` | The Python + GTK 4 + libadwaita apps: `settings.py`, `menu.py` (start menu), `welcome.py`, `installer.py` (with the `install-backend` script), `account.py` (Sign in with Jace), `updates.py`, `antivirus.py`, `store.py` (Jace Store, Flathub and Arch in Settings) and `appimage.py`. |
+| `desktop/usr/lib/jace-os/jaceos/` | The Python + GTK 4 + libadwaita apps: `settings.py`, `menu.py` (start menu), `setup.py` (Setup, the first start), `installer.py` (with the `install-backend` script), `account.py` (Sign in with Jace), `updates.py`, `antivirus.py`, `store.py` (Jace Store, Flathub and Arch in Settings) and `appimage.py`. |
 | `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin`, `jace-browser-bin`, `zen-browser-bin` (kept for computers that still have it) and `yay-bin`, which unpack each app's official release. |
 | `archiso/` | The live USB profile (packages, live user and auto-login). `build.sh` combines it with archiso's `releng` boot setup. |
 | `site/` | The website on GitHub Pages. |

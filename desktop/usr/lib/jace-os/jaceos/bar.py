@@ -52,7 +52,6 @@ APP_ID_ENTRIES = {
     "io.github.jace_deb.JaceSocial": "jace-social",
     "io.github.okjace.JaceStore": "jace-store",
     "org.jaceos.Settings": "jace-settings",
-    "org.jaceos.Welcome": "jace-welcome",
     "org.jaceos.Installer": "jace-welcome",
     "org.jaceos.Migrate": "jace-browser",
     "zen": "zen",

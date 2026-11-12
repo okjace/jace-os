@@ -51,5 +51,14 @@
  "Making your account": "Je account maken",
  "Choosing your look": "Je uiterlijk toepassen",
  "Finishing up": "Afronden",
- "Done": "Klaar"
+ "Done": "Klaar",
+ "Sign in with Jace": "Inloggen met Jace",
+ "Not now": "Niet nu",
+ "Connect to the internet to sign in, or sign in later in Settings.": "Maak verbinding met internet om in te loggen, of log later in via Instellingen.",
+ "Signing in…": "Inloggen…",
+ "Use a different account": "Ander account gebruiken",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "Je naam en foto komen van je Jace-account, en Jace Launcher, Jace Social en Jace Store loggen vanzelf in.",
+ "Couldn't sign in.": "Inloggen is niet gelukt.",
+ "Signed in as {}": "Ingelogd als {}",
+ "Signing in to Jace": "Inloggen bij Jace"
 }

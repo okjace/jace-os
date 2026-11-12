@@ -2,7 +2,7 @@
 # (Virus protection and automatic updates are masked on the live USB: see
 # /etc/systemd/system/*.service -> /dev/null. They are on once Jace OS is installed.)
 # Live USB only: makes the "jace" user (no password, administrator) and signs it
-# straight in to the Jace OS desktop, with the welcome app offering to install.
+# straight in to the Jace OS desktop, which offers to install (/usr/lib/jace-os/live-start).
 set -e
 if ! id jace >/dev/null 2>&1; then
   useradd -m -G wheel,video,audio,input,network -c "Jace OS" -s /bin/bash jace

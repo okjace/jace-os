@@ -51,5 +51,14 @@
  "Making your account": "יוצר את החשבון",
  "Choosing your look": "מחיל את המראה",
  "Finishing up": "מסיים",
- "Done": "סיום"
+ "Done": "סיום",
+ "Sign in with Jace": "התחברות עם Jace",
+ "Not now": "לא עכשיו",
+ "Connect to the internet to sign in, or sign in later in Settings.": "יש להתחבר לאינטרנט כדי להיכנס, או להיכנס מאוחר יותר בהגדרות.",
+ "Signing in…": "מתחבר…",
+ "Use a different account": "שימוש בחשבון אחר",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "השם והתמונה שלך מגיעים מחשבון Jace, ו-Jace Launcher,‏ Jace Social ו-Jace Store נכנסים לבד.",
+ "Couldn't sign in.": "ההתחברות נכשלה.",
+ "Signed in as {}": "מחובר בתור {}",
+ "Signing in to Jace": "מתחבר ל-Jace"
 }

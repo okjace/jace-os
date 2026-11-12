@@ -51,5 +51,14 @@
  "Making your account": "Skapar ditt konto",
  "Choosing your look": "Använder ditt utseende",
  "Finishing up": "Gör klart",
- "Done": "Klart"
+ "Done": "Klart",
+ "Sign in with Jace": "Logga in med Jace",
+ "Not now": "Inte nu",
+ "Connect to the internet to sign in, or sign in later in Settings.": "Anslut till internet för att logga in, eller logga in senare i Inställningar.",
+ "Signing in…": "Loggar in…",
+ "Use a different account": "Använd ett annat konto",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "Ditt namn och din bild kommer från ditt Jace-konto, och Jace Launcher, Jace Social och Jace Store loggar in av sig själva.",
+ "Couldn't sign in.": "Det gick inte att logga in.",
+ "Signed in as {}": "Inloggad som {}",
+ "Signing in to Jace": "Loggar in på Jace"
 }

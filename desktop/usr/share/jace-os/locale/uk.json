@@ -51,5 +51,14 @@
  "Making your account": "Створення облікового запису",
  "Choosing your look": "Застосування вигляду",
  "Finishing up": "Завершення",
- "Done": "Готово"
+ "Done": "Готово",
+ "Sign in with Jace": "Увійти через Jace",
+ "Not now": "Не зараз",
+ "Connect to the internet to sign in, or sign in later in Settings.": "Підключіться до інтернету, щоб увійти, або увійдіть пізніше в Налаштуваннях.",
+ "Signing in…": "Вхід…",
+ "Use a different account": "Використати інший обліковий запис",
+ "Your name and picture come from your Jace account, and Jace Launcher, Jace Social and Jace Store sign in by themselves.": "Ваше ім'я та фото беруться з облікового запису Jace, а Jace Launcher, Jace Social і Jace Store входять самі.",
+ "Couldn't sign in.": "Не вдалося увійти.",
+ "Signed in as {}": "Ви ввійшли як {}",
+ "Signing in to Jace": "Вхід у Jace"
 }

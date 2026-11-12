@@ -1,0 +1,10 @@
+#!/bin/sh
+# At sign-in on the live USB only: booting "Install Jace OS" from the USB's boot menu opens
+# the installer straight away; "Try Jace OS" gets a notification offering to install.
+grep -q "archisobasedir=" /proc/cmdline 2>/dev/null || exit 0
+if grep -qw "jace.install=1" /proc/cmdline; then
+  exec jace-installer
+fi
+sleep 4
+[ "$(notify-send -a "Jace OS" -i jace-os -t 0 -A install="Install Jace OS" \
+  "You're trying Jace OS" "Nothing on this computer changes until you install it.")" = install ] && exec jace-installer
