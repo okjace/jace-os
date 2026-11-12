@@ -631,11 +631,15 @@ class SetupWindow(Adw.ApplicationWindow):
         self.sync_switches = {}
         g = Adw.PreferencesGroup()
         for cid, (_col, title, about) in cloudsync.CATEGORIES.items():
-            row = Adw.SwitchRow(title=_(title), subtitle=_(about), active=True)
+            row = Adw.SwitchRow(use_markup=False, active=True)
+            row.set_title(_(title))
+            row.set_subtitle(_(about))
             self.sync_switches[("cat", cid)] = row
             g.add(row)
         for gid, (title, about, _paths, _rule) in filesync.GROUPS.items():
-            row = Adw.SwitchRow(title=_(title), subtitle=_(about), active=gid != "projects")
+            row = Adw.SwitchRow(use_markup=False, active=gid != "projects")
+            row.set_title(_(title))
+            row.set_subtitle(_(about))
             self.sync_switches[("files", gid)] = row
             g.add(row)
         for row in self.sync_switches.values():

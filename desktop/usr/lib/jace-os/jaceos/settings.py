@@ -116,7 +116,10 @@ def status_header(icon, title, description="", child=None, fallback="dialog-info
 
 
 def switch_row(title, subtitle, active, on_change):
-    row = Adw.SwitchRow(title=title, subtitle=subtitle or "", active=active)
+    # Plain text: a title like "Documents & Desktop" would otherwise be read as markup and vanish.
+    row = Adw.SwitchRow(use_markup=False, active=active)
+    row.set_title(title)
+    row.set_subtitle(subtitle or "")
     row.connect("notify::active", lambda r, _p: on_change(r.get_active()))
     return row
 
@@ -455,6 +458,12 @@ class SettingsWindow(Adw.ApplicationWindow):
                 fg.add(row)
             fg.add(button_row("Add a project folder", "Syncs it, skipping build folders like node_modules",
                               "Add folder…", self._files_add_project, icon="folder-new-symbolic"))
+            claude = [n for n in filesync.claude_projects() if n not in state.get("projects", [])]
+            if claude:
+                fg.add(button_row("Add Claude's projects", "The folders you've used Claude Code in: "
+                                  + ", ".join("~/" + n for n in claude[:4]) + ("…" if len(claude) > 4 else ""),
+                                  f"Add {len(claude)}", lambda: self._files_add_claude(claude),
+                                  icon="folder-new-symbolic"))
         if state.get("files_error"):
             fg.add(plain_row(title="Couldn't sync files", subtitle=state["files_error"]))
         page.add(fg)
@@ -474,6 +483,29 @@ class SettingsWindow(Adw.ApplicationWindow):
         cloudsync.save_state(state)
         if group_id == "projects":
             self.reload()
+
+    def _files_add_claude(self, names):
+        """Adds them, except big ones (over 100 MB, like downloaded source code): those you can add
+        with Add folder… if you really want them."""
+        def work():
+            sizes = {n: filesync.project_size(n) for n in names}
+            small = [n for n in names if sizes[n] <= filesync.BIG_PROJECT]
+            for name in small:
+                filesync.add_project(str(Path.home() / name))
+            return small, [(n, sizes[n]) for n in names if sizes[n] > filesync.BIG_PROJECT]
+
+        def done(res):
+            if isinstance(res, Exception):
+                self.toast(str(res))
+                return
+            small, big = res
+            msg = f"{len(small)} project folder{'s' if len(small) != 1 else ''} will sync"
+            if big:
+                msg += ". Skipped (too big): " + ", ".join(f"~/{n} ({storage.human(b)})" for n, b in big)
+            self.toast(msg)
+            self.reload()
+        self.toast("Measuring your projects…")
+        background(work, done)
 
     def _files_add_project(self):
         dialog = Gtk.FileDialog(title="Choose a project folder", initial_folder=Gio.File.new_for_path(str(Path.home())))

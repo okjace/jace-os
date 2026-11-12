@@ -285,6 +285,48 @@ def add_project(path: str) -> str:
     return name
 
 
+def claude_projects() -> list[str]:
+    """The folders you've used Claude Code in (that are in your home folder and still exist), as
+    project folder names, so "Add Claude's projects" can sync their code alongside the sessions."""
+    found = set()
+    root = HOME / ".claude/projects"
+    if not root.is_dir():
+        return []
+    for proj in root.iterdir():
+        for chat in sorted(proj.glob("*.jsonl"), key=lambda f: -f.stat().st_mtime)[:3]:
+            cwd = None
+            try:
+                with open(chat, encoding="utf-8", errors="replace") as f:
+                    for _n, line in zip(range(40), f):
+                        try:
+                            cwd = json.loads(line).get("cwd")
+                        except ValueError:
+                            continue
+                        if cwd:
+                            break
+            except OSError:
+                continue
+            if not cwd:
+                continue
+            p = Path(cwd)
+            try:
+                name = p.relative_to(HOME).as_posix()
+            except ValueError:
+                break
+            if name not in (".", "") and p.is_dir():
+                found.add(name)
+            break
+    return sorted(found)
+
+
+BIG_PROJECT = 100 * 1000 * 1000
+
+
+def project_size(name: str) -> int:
+    """What a project folder would take up (build folders skipped)."""
+    return sum(e.get("size", 0) for e in scan(HOME / name).values())
+
+
 def remove_project(name: str):
     """Stops syncing a project folder on all computers (its files stay where they are)."""
     state = cloudsync.load_state()
