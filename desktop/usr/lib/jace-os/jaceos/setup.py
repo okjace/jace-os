@@ -235,6 +235,10 @@ class SetupWindow(Adw.ApplicationWindow):
     # --- moving between pages ---------------------------------------------------------------------
 
     def show(self, name, backwards=False):
+        if name != "jace" and getattr(self, "current", "") == "jace":
+            attempt = getattr(self, "jace_attempt", None)
+            if attempt and attempt["running"]:
+                attempt["cancel"] = True
         self.current = name
         rtl = Gtk.Widget.get_default_direction() == Gtk.TextDirection.RTL
         forward = Gtk.StackTransitionType.SLIDE_RIGHT if rtl else Gtk.StackTransitionType.SLIDE_LEFT
@@ -283,7 +287,10 @@ class SetupWindow(Adw.ApplicationWindow):
             self.go(1)
             return True
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and self.current in DOTS:
-            if not isinstance(self.get_focus(), Gtk.Text):      # Enter in a text box is handled there
+            # Enter in a text box, or on Jace's sign-in page, is theirs: it doesn't move on.
+            if self.current == "jace" and self.jace_state.get_visible_child_name() in ("web", "wait"):
+                return False
+            if not isinstance(self.get_focus(), Gtk.Text):
                 self.go(1)
                 return True
         return False
@@ -525,7 +532,20 @@ class SetupWindow(Adw.ApplicationWindow):
                   lambda up: self.jace_state.set_visible_child_name("intro" if up else "offline"))
 
     def jace_sign_in(self):
-        self.jace_cancelled = False
+        old = getattr(self, "jace_attempt", None)
+        if old and old["running"]:
+            # Stop the sign-in that's still waiting (it lets go within a second), then start again.
+            old["cancel"] = True
+            self.jace_state.set_visible_child_name("wait")
+
+            def retry():
+                if old["running"]:
+                    return True                        # still letting go: check again shortly
+                self.jace_sign_in()
+                return False
+            GLib.timeout_add(250, retry)
+            return
+        attempt = self.jace_attempt = {"cancel": False, "running": True}
         self.title_jace.set_visible(False)
         web = None
         try:
@@ -547,12 +567,15 @@ class SetupWindow(Adw.ApplicationWindow):
                 spawn(["xdg-open", url])           # no web view: a browser window instead
 
         def done(result):
+            attempt["running"] = False
+            if attempt is not self.jace_attempt:
+                return                                 # an older attempt, replaced by a new one
             if getattr(self, "jace_view", None) is not None:
                 self.jace_web_box.remove(self.jace_view)
                 self.jace_view = None
             self.title_jace.set_visible(True)
             if isinstance(result, Exception):
-                if not self.jace_cancelled:
+                if not attempt["cancel"]:
                     self.toasts.add_toast(Adw.Toast(title=str(result) or _("Couldn't sign in."), timeout=4))
                 self.jace_state.set_visible_child_name("intro")
                 return
@@ -561,13 +584,15 @@ class SetupWindow(Adw.ApplicationWindow):
 
         def work():
             try:
-                return account.sign_in(open_url=open_url, save=False, cancelled=lambda: self.jace_cancelled)
+                return account.sign_in(open_url=open_url, save=False, cancelled=lambda: attempt["cancel"])
             except Exception as e:  # noqa: BLE001 - shown to you, and you can try again
                 return e
         in_thread(work, done)
 
     def jace_cancel(self):
-        self.jace_cancelled = True
+        attempt = getattr(self, "jace_attempt", None)
+        if attempt:
+            attempt["cancel"] = True
         self.jace_state.set_visible_child_name("wait")
 
     def show_jace(self, acct):
