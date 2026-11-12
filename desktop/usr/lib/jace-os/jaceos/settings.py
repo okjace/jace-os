@@ -8,6 +8,7 @@ windows, keyboard, power, datetime, apps, users, about.
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -23,7 +24,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import antivirus, avatars, bar, clipboard, menu_edits, profile, shortcuts, storage, store  # noqa: E402
+from jaceos import antivirus, avatars, bar, clipboard, cloudsync, menu_edits, profile, shortcuts, storage, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
@@ -370,6 +371,7 @@ class SettingsWindow(Adw.ApplicationWindow):
                                       lambda: background(account.refresh_profile, lambda _r: self.reload())),
                            button_row("Sign out", "Removes your Jace account from this computer", "Sign out",
                                       self._sign_out)))
+            self._sync_groups(page)
         else:
             self.signin_status = Gtk.Label(css_classes=["dim-label"], wrap=True)
             b = Gtk.Button(label="Sign in with Jace", css_classes=["suggested-action", "pill"],
@@ -388,6 +390,140 @@ class SettingsWindow(Adw.ApplicationWindow):
                        *[link_row(name, about, [cmd], cmd) for _p, cmd, name, about in
                          __import__("jaceos").JACE_APPS]))
         return page
+
+    # --- Cloud sync (part of Jace account) ---------------------------------------------------------
+
+    def _sync_groups(self, page):
+        state = cloudsync.load_state()
+        on = state["enabled"] and cloudsync.has_key()
+        g = Adw.PreferencesGroup(title="Cloud sync", description=(
+            "Keeps what you choose the same on all your Jace OS computers. It's encrypted on this computer "
+            "with your sync passphrase, so Jace can't read it."))
+        if not on:
+            g.add(button_row("Turn on cloud sync", "Your look, wallpaper, desktop and apps, on every computer "
+                             "you sign in to", "Turn on…", self._sync_turn_on, suggested=True,
+                             icon="emblem-synchronizing-symbolic"))
+            page.add(g)
+            return
+        when = (GLib.DateTime.new_from_unix_local(int(state["last_sync"])).format("%B %-d, %H:%M")
+                if state["last_sync"] else "Not yet")
+        status = f"Couldn't sync: {state['last_error']}" if state["last_error"] else f"Last synced {when}"
+        g.add(button_row("Sync now", status, "Sync now", self._sync_now, icon="emblem-synchronizing-symbolic"))
+        for cat, (_col, title, about) in cloudsync.CATEGORIES.items():
+            g.add(switch_row(title, about, state["categories"].get(cat, True),
+                             lambda v, c=cat: self._sync_category(c, v)))
+        page.add(g)
+
+        missing = cloudsync.missing_apps(state)
+        if missing["flatpak"] or missing["aur"]:
+            mg = Adw.PreferencesGroup(title="Apps from your other computers",
+                                      description="They aren't on this computer yet.")
+            mg.set_header_suffix(Gtk.Button(label="Install all", valign=Gtk.Align.CENTER, css_classes=["pill"]))
+            mg.get_header_suffix().connect("clicked", lambda *_: self._sync_install(missing))
+            for app_id in missing["flatpak"]:
+                mg.add(plain_row(title=app_id, subtitle="Flatpak"))
+            for pkg in missing["aur"]:
+                mg.add(plain_row(title=pkg, subtitle="AUR"))
+            page.add(mg)
+
+        off = Adw.PreferencesGroup()
+        off.add(button_row("Turn off cloud sync", "Stops syncing on this computer. Your other computers and "
+                           "what's saved in Jace aren't changed.", "Turn off", lambda: self._sync_off(False)))
+        off.add(button_row("Delete synced data from Jace", "Turns sync off everywhere and removes Jace OS's "
+                           "synced data from your Jace account (to start over with a new passphrase)", "Delete…",
+                           lambda: self._sync_off(True)))
+        page.add(off)
+
+    def _sync_turn_on(self):
+        def ask(exists):
+            if isinstance(exists, Exception):
+                self.toast(str(exists))
+                return
+            box = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+            pw = Adw.PasswordEntryRow(title="Sync passphrase")
+            box.append(pw)
+            pw2 = None
+            if not exists:
+                pw2 = Adw.PasswordEntryRow(title="Type it again")
+                box.append(pw2)
+            body = ("Type the sync passphrase you chose on your other Jace OS computer." if exists else
+                    "Choose a sync passphrase (at least 8 characters). Your other computers will need it too. "
+                    "Jace never sees it, so it can't be recovered: if you forget it, you can start over.")
+            d = Adw.AlertDialog(heading="Turn on cloud sync", body=body)
+            d.set_extra_child(box)
+            d.add_response("cancel", "Cancel")
+            d.add_response("on", "Turn on")
+            d.set_response_appearance("on", Adw.ResponseAppearance.SUGGESTED)
+
+            def respond(_d, response):
+                if response != "on":
+                    return
+                if pw2 is not None and pw.get_text() != pw2.get_text():
+                    self.toast("The passphrases don't match")
+                    return
+                passphrase = pw.get_text()
+                self.toast("Turning on cloud sync…")
+
+                def work():
+                    cloudsync.set_passphrase(passphrase)
+                    state = cloudsync.load_state()
+                    state["enabled"] = True
+                    cloudsync.save_state(state)
+                    return cloudsync.sync()
+
+                def done(res):
+                    if isinstance(res, Exception):
+                        self.toast(str(res))
+                    else:
+                        self.toast("Cloud sync is on")
+                    self.reload()
+                background(work, done)
+            d.connect("response", respond)
+            d.present(self)
+        background(cloudsync.passphrase_exists, ask)
+
+    def _sync_now(self):
+        def done(res):
+            if isinstance(res, Exception):
+                state = cloudsync.load_state()
+                state["last_error"] = str(res)
+                cloudsync.save_state(state)
+                self.toast(str(res))
+            else:
+                self.toast("Synced")
+            self.reload()
+        background(cloudsync.sync, done)
+
+    def _sync_category(self, cat, on):
+        state = cloudsync.load_state()
+        state["categories"][cat] = on
+        cloudsync.save_state(state)
+
+    def _sync_install(self, missing):
+        parts = []
+        if missing["flatpak"]:
+            parts.append("flatpak install -y --user flathub " + " ".join(shlex.quote(a) for a in missing["flatpak"]))
+        if missing["aur"]:
+            parts.append("yay -S --needed " + " ".join(shlex.quote(a) for a in missing["aur"]))
+        spawn(["jace-terminal", "--", "/usr/lib/jace-os/then-wait", "sh", "-c", "; ".join(parts)])
+
+    def _sync_off(self, everywhere):
+        def go():
+            background(lambda: cloudsync.forget(everywhere),
+                       lambda res: (self.toast(str(res)) if isinstance(res, Exception) else
+                                    self.toast("Cloud sync is off"), self.reload()))
+        if not everywhere:
+            go()
+            return
+        d = Adw.AlertDialog(heading="Delete synced data from Jace?",
+                            body="Jace OS's synced data is removed from your Jace account and sync stops on this "
+                                 "computer. Your other computers keep what they have, but stop syncing until you "
+                                 "turn sync on again with a new passphrase. Jace Browser's sync isn't touched.")
+        d.add_response("cancel", "Cancel")
+        d.add_response("delete", "Delete")
+        d.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.connect("response", lambda _d, r: r == "delete" and go())
+        d.present(self)
 
     def _sign_in(self, button):
         button.set_sensitive(False)

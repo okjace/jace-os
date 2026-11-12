@@ -18,8 +18,8 @@ depends=(
   xorg-xwayland qt5-wayland qt6-wayland
   # Jace OS apps (Python + GTK 4 + libadwaita)
   python python-gobject gtk4 libadwaita gtk4-layer-shell gsettings-desktop-schemas dconf
-  # Setup shows the Sign in with Jace page itself
-  webkitgtk-6.0
+  # Setup shows the Sign in with Jace page itself; cloud sync encrypts with AES-GCM
+  webkitgtk-6.0 python-cryptography
   # Login screen and boot splash
   greetd greetd-regreet cage plymouth
   # System

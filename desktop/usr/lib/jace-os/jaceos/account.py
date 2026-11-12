@@ -52,7 +52,8 @@ def settings() -> dict:
         # Only for testing against your own Jace while it doesn't support PKCE yet. Never ship one.
         "client_secret": s.get("client_secret", "").strip(),
         "port": int(s.get("redirect_port", "47101")),
-        "scope": s.get("scope", "profile email"),
+        # "sync" (cloud sync) is always asked for, even with an older account.conf.
+        "scope": " ".join(dict.fromkeys(s.get("scope", "profile email").split() + ["sync"])),
     }
 
 
