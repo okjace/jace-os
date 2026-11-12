@@ -24,7 +24,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from jaceos import (BACKGROUNDS, GITHUB, JACE_URL, LOGO, VERSION, WEBSITE, account, background,  # noqa: E402
                     config_dir, load_css, ok, os_release, run, spawn, updates, which)
 from jaceos import menu as start_menu  # noqa: E402
-from jaceos import antivirus, avatars, bar, clipboard, cloudsync, menu_edits, profile, shortcuts, storage, store  # noqa: E402
+from jaceos import antivirus, avatars, bar, clipboard, cloudsync, filesync, menu_edits, profile, shortcuts, storage, store  # noqa: E402
 
 PAGES = [
     # (id, title, icon)
@@ -413,6 +413,7 @@ class SettingsWindow(Adw.ApplicationWindow):
             g.add(switch_row(title, about, state["categories"].get(cat, True),
                              lambda v, c=cat: self._sync_category(c, v)))
         page.add(g)
+        self._file_sync_group(page, state)
 
         missing = cloudsync.missing_apps(state)
         if missing["flatpak"] or missing["aur"]:
@@ -433,6 +434,63 @@ class SettingsWindow(Adw.ApplicationWindow):
                            "synced data from your Jace account (to start over with a new passphrase)", "Delete…",
                            lambda: self._sync_off(True)))
         page.add(off)
+
+    def _file_sync_group(self, page, state):
+        fg = Adw.PreferencesGroup(title="Files", description=(
+            "Folders that stay the same on all your computers. Files are encrypted before they're sent, and "
+            "something deleted on one computer goes to the Trash on the others."))
+        self.files_usage = Gtk.Label(css_classes=["dim-label", "caption"])
+        fg.set_header_suffix(self.files_usage)
+        on = state.get("files", {})
+        for gid, (title, about, _paths, _rule) in filesync.GROUPS.items():
+            fg.add(switch_row(title, about, bool(on.get(gid)), lambda v, g=gid: self._files_toggle(g, v)))
+        if on.get("projects"):
+            for name in sorted(state.get("projects", [])):
+                row = plain_row(title="~/" + name, subtitle="Project folder")
+                row.add_prefix(Gtk.Image(icon_name="folder-symbolic"))
+                b = Gtk.Button(icon_name="list-remove-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                               tooltip_text="Stop syncing this folder")
+                b.connect("clicked", lambda _b, n=name: (filesync.remove_project(n), self.reload()))
+                row.add_suffix(b)
+                fg.add(row)
+            fg.add(button_row("Add a project folder", "Syncs it, skipping build folders like node_modules",
+                              "Add folder…", self._files_add_project, icon="folder-new-symbolic"))
+        if state.get("files_error"):
+            fg.add(plain_row(title="Couldn't sync files", subtitle=state["files_error"]))
+        page.add(fg)
+
+        def shown(info):
+            if isinstance(info, Exception):
+                return
+            used, quota = info.get("used", 0), info.get("quota") or 0
+            self.files_usage.set_label(f"{storage.human(used)} of {storage.human(quota)} used" if quota
+                                       else f"{storage.human(used)} used")
+        if any(on.values()):
+            background(filesync.usage, shown)
+
+    def _files_toggle(self, group_id, on):
+        state = cloudsync.load_state()
+        state.setdefault("files", {})[group_id] = on
+        cloudsync.save_state(state)
+        if group_id == "projects":
+            self.reload()
+
+    def _files_add_project(self):
+        dialog = Gtk.FileDialog(title="Choose a project folder", initial_folder=Gio.File.new_for_path(str(Path.home())))
+
+        def chosen(d, result):
+            try:
+                folder = d.select_folder_finish(result)
+            except GLib.Error:
+                return
+            try:
+                name = filesync.add_project(folder.get_path())
+            except cloudsync.SyncError as e:
+                self.toast(str(e))
+                return
+            self.toast(f"~/{name} will sync")
+            self.reload()
+        dialog.select_folder(self, None, chosen)
 
     def _sync_turn_on(self):
         def ask(exists):
@@ -492,7 +550,7 @@ class SettingsWindow(Adw.ApplicationWindow):
             else:
                 self.toast("Synced")
             self.reload()
-        background(cloudsync.sync, done)
+        background(lambda: cloudsync.sync() + filesync.sync(), done)
 
     def _sync_category(self, cat, on):
         state = cloudsync.load_state()

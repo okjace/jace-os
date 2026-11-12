@@ -130,7 +130,13 @@ def decrypt(key: bytes, payload: str) -> bytes:
 
 # --- talking to Jace --------------------------------------------------------------------------------
 
+# Setup signs in before your account exists: it sets this instead of saving a sign-in.
+TOKEN = None
+
+
 def _token() -> str:
+    if TOKEN:
+        return TOKEN
     acct = account.load()
     if not acct:
         raise SyncError("Sign in with Jace to use sync.")
@@ -198,9 +204,9 @@ def passphrase_exists() -> bool:
     return _get(KEYS) is not None
 
 
-def set_passphrase(passphrase: str):
-    """Use this passphrase: checks it against the one your other computers use, or (the first
-    time) makes it the one. Keeps the key on this computer, readable only by you."""
+def unlock(passphrase: str, create: bool = True) -> bytes:
+    """The sync key for this passphrase: checked against the one your other computers use, or
+    (the first time, if create) made the one. Saves nothing on this computer."""
     if len(passphrase) < 8:
         raise SyncError("Use at least 8 characters.")
     existing = _get(KEYS)
@@ -209,13 +215,19 @@ def set_passphrase(passphrase: str):
         key = _derive(passphrase, base64.b64decode(info["salt"]))
         if decrypt(key, info["check"]) != CHECK:
             raise SyncError("This doesn't match your sync passphrase.")
-    else:
-        salt = os.urandom(16)
-        key = _derive(passphrase, salt)
+        return key
+    salt = os.urandom(16)
+    key = _derive(passphrase, salt)
+    if create:
         keys = {"salt": base64.b64encode(salt).decode(), "check": encrypt(key, CHECK), "kdf": "scrypt-32768-8-1"}
         if _put(KEYS, base64.b64encode(json.dumps(keys).encode()).decode(), 0) is None:
-            return set_passphrase(passphrase)        # another computer just set one: check against it
-    _save_key(key)
+            return unlock(passphrase, create)          # another computer just set one: check against it
+    return key
+
+
+def set_passphrase(passphrase: str):
+    """Uses this passphrase here (see unlock), keeping the key readable only by you."""
+    _save_key(unlock(passphrase))
 
 
 def forget(everywhere: bool = False):
@@ -405,8 +417,10 @@ def note_changes(state: dict) -> bool:
 
 
 def daemon():
-    """At sign-in, every 15 minutes, and a minute after you change something."""
-    last = 0.0
+    """At sign-in, every 15 minutes, and a minute after something changes, here or on one of
+    your other computers."""
+    from jaceos import filesync
+    last = last_files = 0.0
     while True:
         state = load_state()
         if state["enabled"] and has_key():
@@ -420,6 +434,20 @@ def daemon():
                     state["last_error"] = str(e)
                     save_state(state)
                 last = time.time()
+            state = load_state()
+            if filesync.enabled(state):
+                try:
+                    due = time.time() - last_files > INTERVAL or filesync.changed_here(state)
+                    if not due:              # changed on another computer?
+                        seen = remote_versions().get(filesync.MANIFEST, {}).get("version", 0)
+                        due = seen != state.get("files_version", 0)
+                    if due:
+                        filesync.sync()
+                        last_files = time.time()
+                except SyncError as e:
+                    state = load_state()
+                    state["files_error"] = str(e)
+                    save_state(state)
         time.sleep(60)
 
 
@@ -427,8 +455,9 @@ def main():
     if "--daemon" in sys.argv:
         daemon()
         return
+    from jaceos import filesync
     try:
-        for line in sync(force="--force" in sys.argv):
+        for line in sync(force="--force" in sys.argv) + filesync.sync():
             print(line)
     except SyncError as e:
         print(e, file=sys.stderr)

@@ -1,8 +1,8 @@
 """Setup: the first thing you see when Jace OS starts for the first time (and after a
 factory reset). Full screen, like setting up a phone:
 
-  Hello → Language → Keyboard → Wi-Fi → Jace account → Time zone → Your account → Look →
-  Setting up → Welcome
+  Hello → Language → Keyboard → Wi-Fi → Jace account → Sync (if you signed in) → Time zone →
+  Your account → Look → Setting up → Welcome
 
 Picking a language switches Setup to it right away (jaceos/i18n.py). It runs as the
 jace-setup user in cage (see /usr/share/jace-os/greetd/setup.toml) and applies your choices
@@ -29,7 +29,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from jaceos import LOGO, ROOT, SHARE, account, i18n, run, spawn  # noqa: E402
+from jaceos import LOGO, ROOT, SHARE, account, cloudsync, filesync, i18n, run, spawn  # noqa: E402
 from jaceos.i18n import _  # noqa: E402
 from jaceos.installer import KEYBOARDS, LOCALES, current_timezone  # noqa: E402
 
@@ -60,7 +60,8 @@ KEYBOARD_GUESS = {"en_US": "us", "en_GB": "gb", "en_CA": "us", "en_AU": "us", "d
                   "uk_UA": "ua", "ar_EG": "ara", "he_IL": "il", "hi_IN": "in", "ja_JP": "jp", "ko_KR": "kr",
                   "zh_CN": "cn", "zh_TW": "cn"}
 
-ORDER = ["hello", "language", "keyboard", "wifi", "jace", "timezone", "account", "look", "working", "welcome"]
+ORDER = ["hello", "language", "keyboard", "wifi", "jace", "sync", "timezone", "account", "look", "working",
+         "welcome"]
 DOTS = ORDER[1:ORDER.index("working")]          # the pages that get a progress dot
 
 
@@ -270,7 +271,12 @@ class SetupWindow(Adw.ApplicationWindow):
             self.show("working")
             self.finish()
             return
+        if delta > 0 and self.current == "sync" and self.sync_wanted() and not getattr(self, "sync_key", None):
+            self.sync_check()                     # checks the passphrase, then moves on by itself
+            return
         target = ORDER[max(1, min(len(ORDER) - 1, i + delta))]
+        if target == "sync" and not getattr(self, "jace", None):
+            target = ORDER[ORDER.index("sync") + (1 if delta > 0 else -1)]   # sync needs a Jace sign-in
         self.show(target, backwards=delta < 0)
 
     def validate(self) -> bool:
@@ -619,6 +625,104 @@ class SetupWindow(Adw.ApplicationWindow):
         except GLib.Error:
             return None
 
+    def page_sync(self):
+        """Sync with Jace: what comes from (and keeps in step with) your other computers, and your
+        sync passphrase. Your new account gets it, and its first sign-in brings everything in."""
+        self.sync_switches = {}
+        g = Adw.PreferencesGroup()
+        for cid, (_col, title, about) in cloudsync.CATEGORIES.items():
+            row = Adw.SwitchRow(title=_(title), subtitle=_(about), active=True)
+            self.sync_switches[("cat", cid)] = row
+            g.add(row)
+        for gid, (title, about, _paths, _rule) in filesync.GROUPS.items():
+            row = Adw.SwitchRow(title=_(title), subtitle=_(about), active=gid != "projects")
+            self.sync_switches[("files", gid)] = row
+            g.add(row)
+        for row in self.sync_switches.values():
+            row.connect("notify::active", lambda *_a: self.sync_reset())
+        sw = Gtk.ScrolledWindow(child=g, hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_height=230,
+                                max_content_height=260, propagate_natural_height=True)
+        pw_group = Adw.PreferencesGroup()
+        self.sync_pw = Adw.PasswordEntryRow(title=_("Sync passphrase"))
+        self.sync_pw2 = Adw.PasswordEntryRow(title=_("Type it again"), visible=False)
+        for r in (self.sync_pw, self.sync_pw2):
+            r.connect("changed", lambda *_a: self.sync_reset())
+            pw_group.add(r)
+        self.sync_pw2.connect("entry-activated", lambda *_a: self.go(1))
+        self.sync_pw.connect("entry-activated", lambda *_a: self.sync_pw2.grab_focus()
+                             if self.sync_pw2.get_visible() else self.go(1))
+        self.sync_hint = Gtk.Label(css_classes=["js-sub", "caption"], wrap=True, justify=Gtk.Justification.CENTER)
+        later = Gtk.Button(label=_("Not now"), css_classes=["flat", "pill"], halign=Gtk.Align.CENTER)
+        later.connect("clicked", lambda *_a: self.sync_skip())
+        return self.page_box(self.title(_("Sync with Jace"), _("Bring your look, wallpaper, desktop, apps and "
+                                                               "files from your other computers, and keep them "
+                                                               "in step."), "emblem-synchronizing-symbolic"),
+                             sw, pw_group, self.sync_hint, later, width=620)
+
+    def enter_sync(self):
+        self.sync_skipped = False
+        cloudsync.TOKEN = self.jace["access_token"]
+        self.sync_hint.set_label(_("Checking your Jace account…"))
+
+        def shown(exists):
+            if isinstance(exists, Exception):
+                self.sync_hint.set_label(str(exists))
+                return
+            self.sync_exists = exists
+            self.sync_pw2.set_visible(not exists)
+            self.sync_pw.set_title(_("Your sync passphrase") if exists else _("Choose a sync passphrase"))
+            self.sync_hint.set_label(
+                _("Type the sync passphrase you chose on your other Jace OS computer.") if exists else
+                _("At least 8 characters. Your other computers will need it too. Jace never sees it, so it "
+                  "can't be recovered."))
+            GLib.idle_add(lambda: (self.sync_pw.grab_focus(), False)[1])
+        in_thread(lambda: self.sync_safe(cloudsync.passphrase_exists), shown)
+
+    @staticmethod
+    def sync_safe(work):
+        try:
+            return work()
+        except Exception as e:  # noqa: BLE001 - shown on the page
+            return e
+
+    def sync_wanted(self) -> bool:
+        return not getattr(self, "sync_skipped", False) and any(r.get_active() for r in self.sync_switches.values())
+
+    def sync_reset(self):
+        self.sync_key = None
+
+    def sync_skip(self):
+        self.sync_skipped = True
+        self.sync_key = None
+        self.go(1)
+
+    def sync_check(self):
+        pw = self.sync_pw.get_text()
+        if self.sync_pw2.get_visible() and pw != self.sync_pw2.get_text():
+            self.sync_hint.set_label(_("The passphrases don't match."))
+            return
+        self.sync_hint.set_label(_("Checking your passphrase…"))
+        self.cont.set_sensitive(False)
+
+        def done(result):
+            self.cont.set_sensitive(True)
+            if isinstance(result, Exception):
+                self.sync_hint.set_label(str(result))
+                return
+            self.sync_key = result
+            self.go(1)
+        # The demo checks a passphrase you already have, but never sets up a new one.
+        in_thread(lambda: self.sync_safe(lambda: cloudsync.unlock(pw, create=not DEMO)), done)
+
+    def sync_choice(self) -> dict | None:
+        """What goes to the new account: the sync key and what's turned on."""
+        if not getattr(self, "jace", None) or not getattr(self, "sync_key", None) or not self.sync_wanted():
+            return None
+        cats = {cid: self.sync_switches[("cat", cid)].get_active() for cid in cloudsync.CATEGORIES}
+        files = {gid: self.sync_switches[("files", gid)].get_active() for gid in filesync.GROUPS}
+        return {"key": base64.b64encode(self.sync_key).decode(),
+                "state": {"enabled": True, "categories": cats, "files": files}}
+
     def page_timezone(self):
         zones = run(["timedatectl", "list-timezones"]).split() or ["UTC"]
         self.zone_search = Gtk.SearchEntry(placeholder_text=_("Search for a city or region"),
@@ -755,6 +859,9 @@ class SetupWindow(Adw.ApplicationWindow):
     def finish(self):
         data = dict(self.choice, fullname=self.fullname.get_text().strip(), username=self.username.get_text(),
                     password=self.pw.get_text(), hostname=self.hostname.get_text())
+        sync = self.sync_choice()
+        if sync:
+            data["sync"] = sync
         if getattr(self, "jace", None):
             acct = {k: v for k, v in self.jace.items() if k != "avatar"}
             data["jace"] = {"account": acct,

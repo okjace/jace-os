@@ -8,7 +8,8 @@
 #   setup-backend finish   {"locale", "keyboard", "timezone", "fullname", "username",
 #                           "password", "hostname", "dark", "jace"} on stdin: make your account
 #                           and apply everything, then sign you in. "jace" (optional) is the
-#                           Jace account you signed in to in Setup: {"account", "avatar" (base64)}
+#                           Jace account you signed in to in Setup: {"account", "avatar" (base64)};
+#                           "sync" (optional) turns on cloud sync: {"key" (base64), "state"}
 #
 # finish prints "@progress <percent> <what it's doing>" lines, then "@done" or "@error <why>".
 set -euo pipefail
@@ -122,6 +123,26 @@ if jace.get("avatar"):
         [ -n "$user_path" ] && busctl call org.freedesktop.Accounts "$user_path" org.freedesktop.Accounts.User \
           SetIconFile s "$home/.local/share/jace-os/avatar" >/dev/null 2>&1 || true
       fi
+    fi
+
+    if python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1]).get("sync") else 1)' "$config"; then
+      progress 75 "Turning on sync"
+      # The sync key (readable only by the new person) and what syncs; the first sign-in brings
+      # everything in from the Jace account (jace-sync --daemon).
+      printf '%s' "$config" | runuser -u "$username" -- env HOME="$home" python3 -c '
+import base64, json, os, sys
+from pathlib import Path
+sync = json.load(sys.stdin)["sync"]
+home = Path(os.environ["HOME"])
+data = home / ".local/share/jace-os"
+conf = home / ".config/jace-os"
+data.mkdir(parents=True, exist_ok=True)
+conf.mkdir(parents=True, exist_ok=True)
+fd = os.open(data / "sync-key", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "wb") as out:
+    out.write(base64.b64decode(sync["key"]))
+(conf / "sync.json").write_text(json.dumps(sync["state"], indent=2))
+' || true
     fi
 
     progress 80 "Choosing your look"
