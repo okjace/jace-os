@@ -438,7 +438,56 @@ class SettingsWindow(Adw.ApplicationWindow):
                            lambda: self._sync_off(True)))
         page.add(off)
 
+    def _file_progress_group(self, page):
+        """While files sync (Sync now or in the background): how far it's got, and Cancel."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["ju-box"])
+        top = Gtk.Box(spacing=12)
+        texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
+        self.fp_title = Gtk.Label(xalign=0, css_classes=["heading"])
+        self.fp_file = Gtk.Label(xalign=0, css_classes=["dim-label", "caption"], ellipsize=Pango.EllipsizeMode.MIDDLE)
+        texts.append(self.fp_title)
+        texts.append(self.fp_file)
+        top.append(texts)
+        self.fp_cancel = Gtk.Button(label="Cancel", valign=Gtk.Align.CENTER, css_classes=["pill"])
+        self.fp_cancel.connect("clicked", self._files_cancel)
+        top.append(self.fp_cancel)
+        self.fp_bar = Gtk.ProgressBar(css_classes=["ju-progress"])
+        box.append(top)
+        box.append(self.fp_bar)
+        self.fp_group = Adw.PreferencesGroup(visible=False)
+        self.fp_group.add(box)
+        page.add(self.fp_group)
+        self._fp_was_running = False
+        self._files_progress_tick()
+        GLib.timeout_add_seconds(1, self._files_progress_tick)
+
+    def _files_progress_tick(self):
+        if self.current != "account" or not self.fp_group.get_root():
+            return False                                   # left the page: stop updating
+        info = filesync.progress()
+        self.fp_group.set_visible(info is not None)
+        if info is None:
+            if self._fp_was_running:                       # just finished or cancelled: show the result
+                self._fp_was_running = False
+                self.reload()
+                return False
+            return True
+        self._fp_was_running = True
+        total, done = info.get("total", 0), info.get("done", 0)
+        self.fp_bar.set_fraction(done / total if total else 0)
+        self.fp_title.set_label(f"Syncing files: {storage.human(done)} of {storage.human(total)}" if total
+                                else "Syncing files…")
+        self.fp_file.set_label(info.get("current", ""))
+        return True
+
+    def _files_cancel(self, button):
+        filesync.cancel()
+        button.set_sensitive(False)
+        button.set_label("Cancelling…")
+        self.toast("Stopping after the file it's on. What's been sent is kept.")
+
     def _file_sync_group(self, page, state):
+        self._file_progress_group(page)
         fg = Adw.PreferencesGroup(title="Files", description=(
             "Folders that stay the same on all your computers. Files are encrypted before they're sent, and "
             "something deleted on one computer goes to the Trash on the others."))
@@ -458,7 +507,9 @@ class SettingsWindow(Adw.ApplicationWindow):
                 fg.add(row)
             fg.add(button_row("Add a project folder", "Syncs it, skipping build folders like node_modules",
                               "Add folder…", self._files_add_project, icon="folder-new-symbolic"))
-            claude = [n for n in filesync.claude_projects() if n not in state.get("projects", [])]
+            # Not ones already syncing, or ones skipped before for being too big.
+            claude = [n for n in filesync.claude_projects()
+                      if n not in state.get("projects", []) and n not in state.get("skipped_projects", [])]
             if claude:
                 fg.add(button_row("Add Claude's projects", "The folders you've used Claude Code in: "
                                   + ", ".join("~/" + n for n in claude[:4]) + ("…" if len(claude) > 4 else ""),
@@ -492,7 +543,12 @@ class SettingsWindow(Adw.ApplicationWindow):
             small = [n for n in names if sizes[n] <= filesync.BIG_PROJECT]
             for name in small:
                 filesync.add_project(str(Path.home() / name))
-            return small, [(n, sizes[n]) for n in names if sizes[n] > filesync.BIG_PROJECT]
+            big = [(n, sizes[n]) for n in names if sizes[n] > filesync.BIG_PROJECT]
+            if big:                      # don't offer them again (Add folder… still adds them)
+                state = cloudsync.load_state()
+                state["skipped_projects"] = sorted(set(state.get("skipped_projects", [])) | {n for n, _b in big})
+                cloudsync.save_state(state)
+            return small, big
 
         def done(res):
             if isinstance(res, Exception):

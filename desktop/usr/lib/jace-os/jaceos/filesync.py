@@ -22,6 +22,7 @@ changed here, what changed elsewhere, and what changed in both:
 Permissions (like a script being executable) and symlinks are kept.
 """
 import base64
+import fcntl
 import hashlib
 import hmac
 import json
@@ -52,6 +53,81 @@ GROUPS = {
 }
 # Files that are never synced, even inside synced folders (they belong to one computer).
 SKIP_NAMES = {".DS_Store", "Thumbs.db", ".~lock", "index.lock"}
+
+
+# --- progress, cancelling, one sync at a time --------------------------------------------------------
+
+def _run_dir() -> Path:
+    d = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "jace-os"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def progress_file() -> Path:
+    """How far the sync that's running has got (Settings shows it): {"running", "total",
+    "done", "current", "pid", "started", "updated"}."""
+    return _run_dir() / "files-progress.json"
+
+
+def cancel():
+    """Asks the sync that's running to stop after the piece it's on. Nothing is lost: pieces
+    already sent stay in Jace and aren't sent again, and finished folders are already saved."""
+    (_run_dir() / "files-cancel").touch()
+
+
+def progress() -> dict | None:
+    """The running sync's progress, or None if no sync is running."""
+    try:
+        info = json.loads(progress_file().read_text())
+    except (OSError, ValueError):
+        return None
+    if not info.get("running"):
+        return None
+    try:
+        os.kill(info["pid"], 0)                 # still alive?
+    except (OSError, KeyError, TypeError):
+        return None
+    return info
+
+
+class Cancelled(cloudsync.SyncError):
+    pass
+
+
+class Progress:
+    def __init__(self, total: int):
+        self.total, self.done, self.current = total, 0, ""
+        self.started = self.written = time.time()
+        (_run_dir() / "files-cancel").unlink(missing_ok=True)
+        self.write()
+
+    def add(self, size: int, current: str = ""):
+        self.done += size
+        if current:
+            self.current = current
+        if time.time() - self.written > 0.5:
+            self.write()
+
+    def check(self):
+        if (_run_dir() / "files-cancel").exists():
+            raise Cancelled("Sync cancelled. What was sent so far is kept, and it carries on next time.")
+
+    def write(self, running: bool = True):
+        self.written = time.time()
+        info = {"running": running, "total": self.total, "done": min(self.done, self.total), "current": self.current,
+                "pid": os.getpid(), "started": self.started, "updated": self.written}
+        tmp = progress_file().with_suffix(".tmp")
+        tmp.write_text(json.dumps(info))
+        tmp.replace(progress_file())
+
+
+PROGRESS: Progress | None = None
+
+
+def _tick(size: int = 0, current: str = ""):
+    if PROGRESS:
+        PROGRESS.check()
+        PROGRESS.add(size, current)
 
 
 # --- talking to Jace's file storage -----------------------------------------------------------------
@@ -165,9 +241,11 @@ def _send_file(path: Path, keys: Keys, known: set) -> list[str]:
                 break
             first = False
             pid = keys.piece_id(chunk)
+            _tick(0, path.name)
             if pid not in known:
                 _upload_piece(pid, keys.seal(chunk))
                 known.add(pid)
+            _tick(len(chunk), path.name)
             ids.append(pid)
             if len(chunk) < CHUNK:
                 break
@@ -182,9 +260,16 @@ def _fetch_file(entry: dict, target: Path, keys: Keys):
         target.symlink_to(entry["link"])
         return
     tmp = target.with_name(f".{target.name}.jace-sync")
-    with open(tmp, "wb") as out:
-        for pid in entry["pieces"]:
-            out.write(keys.open(_download_piece(pid)))
+    try:
+        with open(tmp, "wb") as out:
+            for pid in entry["pieces"]:
+                _tick(0, target.name)
+                data = keys.open(_download_piece(pid))
+                out.write(data)
+                _tick(len(data), target.name)
+    except BaseException:
+        tmp.unlink(missing_ok=True)            # never leave half a file behind
+        raise
     os.chmod(tmp, entry.get("mode", 0o644))
     os.replace(tmp, target)
     mtime = entry.get("mtime")
@@ -356,10 +441,44 @@ def enabled(state: dict | None = None) -> bool:
 
 
 def sync() -> list[str]:
-    """Syncs every folder that's turned on. Returns what happened."""
+    """Syncs every folder that's turned on. Returns what happened. Only one sync runs at a time
+    (the background one or Sync now); each folder is saved to Jace as soon as it's done."""
+    global PROGRESS
     state = cloudsync.load_state()
     if not enabled(state):
         return []
+    lock = open(_run_dir() / "files-sync.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock.close()
+        return ["Files: a sync is already running"]
+    try:
+        return _sync_locked(state)
+    except Cancelled as e:
+        return [f"Files: {e}"]
+    finally:
+        if PROGRESS:
+            PROGRESS.write(running=False)
+        PROGRESS = None
+        (_run_dir() / "files-cancel").unlink(missing_ok=True)
+        lock.close()
+
+
+def _to_move(root: Path, local: dict, base: dict, remote: dict) -> int:
+    """Bytes this folder is about to send or receive (for the progress bar)."""
+    total = 0
+    for rel in set(local) | set(remote):
+        L, B, R = local.get(rel), base.get(rel), remote.get(rel)
+        if L and not _same_here(L, B):
+            total += L.get("size", 0)
+        elif R and not R.get("deleted") and not _same_content(R, B):
+            total += R.get("size", 0)
+    return total
+
+
+def _sync_locked(state: dict) -> list[str]:
+    global PROGRESS
     key = cloudsync._key()
     keys = Keys(key)
     for _attempt in range(3):
@@ -378,18 +497,34 @@ def sync() -> list[str]:
         for f in manifest.get("folders", {}).values():
             for e in f.values():
                 known.update(e.get("pieces", []))
+        todo = folders(state, manifest)
+        scans = {name: scan(root) for name, (root, _rule) in todo.items()}
+        PROGRESS = Progress(sum(_to_move(todo[n][0], scans[n], index.get(n, {}),
+                                         manifest.get("folders", {}).get(n, {})) for n in todo))
         counts = {"up": 0, "down": 0, "conflicts": 0, "deleted": 0}
-        for name, (root, rule) in folders(state, manifest).items():
+        clashed = False
+        for name, (root, rule) in todo.items():
             remote = manifest.setdefault("folders", {}).setdefault(name, {})
-            index[name] = _sync_folder(root, rule, remote, index.get(name, {}), keys, known, counts)
-        new_version = _save_manifest(key, manifest, version)
-        if new_version is None:
-            continue                      # another computer synced at the same time: again, with theirs
-        _index_file().write_text(json.dumps(index))
+            index[name] = _sync_folder(root, rule, remote, index.get(name, {}), keys, known, counts, scans[name])
+            # Saved to Jace straight away, so a cancelled or interrupted sync keeps this folder.
+            new_version = _save_manifest(key, manifest, version)
+            if new_version is None:
+                clashed = True            # another computer synced at the same time: again, with theirs
+                break
+            version = new_version
+            _index_file().write_text(json.dumps(index))
+        if clashed:
+            continue
+        if not todo:
+            new_version = _save_manifest(key, manifest, version)
+            if new_version is None:
+                continue
+            version = new_version
+            _index_file().write_text(json.dumps(index))
         state = cloudsync.load_state()
         state["removed_projects"] = []
         state["files_last_sync"] = time.time()
-        state["files_version"] = new_version
+        state["files_version"] = version
         state["files_error"] = ""
         cloudsync.save_state(state)
         _clean_up(manifest)
@@ -399,8 +534,9 @@ def sync() -> list[str]:
     raise cloudsync.SyncError("Your other computers keep syncing at the same time; it'll be tried again.")
 
 
-def _sync_folder(root: Path, rule: str, remote: dict, base: dict, keys: Keys, known: set, counts: dict) -> dict:
-    local = scan(root)
+def _sync_folder(root: Path, rule: str, remote: dict, base: dict, keys: Keys, known: set, counts: dict,
+                 local: dict | None = None) -> dict:
+    local = scan(root) if local is None else local
     device = socket.gethostname()
     new_base = {}
     for rel in sorted(set(local) | set(base) | set(remote)):
