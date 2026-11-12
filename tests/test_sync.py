@@ -87,6 +87,7 @@ TRASH = TMP / "trash"
 TRASH.mkdir()
 fs._trash = lambda p: shutil.move(str(p), TRASH / p.name)
 fs.CHUNK = 64 * 1024            # small pieces, so files get split
+fs.SMALL = 16 * 1024            # files under 16 KB get packed together
 
 
 def computer(name: str) -> Path:
@@ -218,6 +219,34 @@ check("the next sync carries on", len(manifest()["folders"]["proj2"]) == 6)
 # 12 files of 100 KB are 24 pieces of 64 KB; 14 went before Cancel, so at most 10 are left.
 check("without sending finished pieces again", 0 < len(transfers) - before <= 24 - 14)
 fs._upload_piece = real_upload
+
+# --- small files are packed together -----------------------------------------------------------------
+
+print("Small files")
+store.clear()
+blobs.clear()
+d = computer("d")
+cs.set_passphrase("correct horse battery")
+turn_on(files=("projects",), projects=("code",))
+(d / "code/src").mkdir(parents=True)
+for i in range(200):
+    (d / f"code/src/file{i}.py").write_text(f"print({i})\n" * 20)
+before = len(transfers)
+fs.sync()
+uploads = len(transfers) - before
+check(f"200 small files go up in a few packs ({uploads} uploads)", uploads <= 6)
+e = computer("e")
+cs.set_passphrase("correct horse battery")
+turn_on(files=("projects",), projects=("code",))
+fs.sync()
+check("and all arrive intact", all((e / f"code/src/file{i}.py").read_text() == f"print({i})\n" * 20
+                                   for i in range(200)))
+(e / "code/src/file7.py").write_text("changed on E\n")
+fs.sync()
+computer("d")
+fs.sync()
+check("a changed small file comes across", (d / "code/src/file7.py").read_text() == "changed on E\n")
+check("the same files on two computers aren't a clash", not list((d / "code/src").glob("*conflict*")))
 
 shutil.rmtree(TMP, ignore_errors=True)
 print("\nAll passed." if not FAILED else f"\n{len(FAILED)} failed.")

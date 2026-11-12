@@ -38,6 +38,10 @@ from pathlib import Path
 from jaceos import account, cloudsync, data_dir
 
 CHUNK = 8 * 1024 * 1024
+# Files smaller than this are packed together into pieces of up to CHUNK: thousands of small
+# files (source code, .git objects, chat logs) then take a few dozen uploads instead of
+# thousands, each of which costs three trips over the internet.
+SMALL = 256 * 1024
 MANIFEST = "os-files"
 HOME = Path.home()
 # Build output and caches: made again when you build, and often huge.
@@ -207,6 +211,15 @@ class Keys:
     def piece_id(self, data: bytes) -> str:
         return hmac.new(self.ids, data, hashlib.sha256).hexdigest()
 
+    def file_hash(self, path: Path) -> str:
+        """A fingerprint of what's in a file (keyed, so it says nothing to anyone else), to tell
+        whether two computers have the same file however it was stored."""
+        h = hmac.new(self.ids, b"file:", hashlib.sha256)
+        with open(path, "rb") as f:
+            while chunk := f.read(CHUNK):
+                h.update(chunk)
+        return h.hexdigest()
+
     def seal(self, data: bytes) -> bytes:
         """The same piece always seals the same way (so it's stored once), and only someone
         with your sync key can tell what's in it."""
@@ -252,6 +265,55 @@ def _send_file(path: Path, keys: Keys, known: set) -> list[str]:
     return ids
 
 
+class Packer:
+    """Collects small files and uploads them together, a pack at a time (up to CHUNK each). Each
+    file's entry gets "pack": [pack id, offset, length] when its pack goes up."""
+
+    def __init__(self, keys: Keys, known: set):
+        self.keys, self.known = keys, known
+        self.items: list[tuple[dict, bytes, str]] = []
+        self.size = 0
+
+    def add(self, path: Path, entry: dict):
+        data = path.read_bytes()
+        self.items.append((entry, data, path.name))
+        self.size += len(data)
+        if self.size >= CHUNK:
+            self.flush()
+
+    def flush(self):
+        if not self.items:
+            return
+        blob = b"".join(data for _e, data, _n in self.items)
+        pid = self.keys.piece_id(blob)
+        _tick(0, self.items[-1][2])
+        if pid not in self.known:
+            _upload_piece(pid, self.keys.seal(blob))
+            self.known.add(pid)
+        offset = 0
+        for entry, data, _name in self.items:
+            entry["pack"] = [pid, offset, len(data)]
+            offset += len(data)
+        _tick(len(blob), self.items[-1][2])
+        self.items, self.size = [], 0
+
+
+_PACKS: dict = {}          # packs downloaded during this sync (a few, most recent last)
+
+
+def _pack(pid: str, keys: Keys) -> bytes:
+    if pid not in _PACKS:
+        _PACKS[pid] = keys.open(_download_piece(pid))
+        while len(_PACKS) > 4:
+            _PACKS.pop(next(iter(_PACKS)))
+    return _PACKS[pid]
+
+
+def _refs(entry: dict) -> list[str]:
+    """The pieces and packs an entry uses."""
+    return list(entry.get("pieces", [])) + ([entry["pack"][0]] if entry.get("pack") else [])
+
+
 def _fetch_file(entry: dict, target: Path, keys: Keys):
     target.parent.mkdir(parents=True, exist_ok=True)
     if entry.get("link") is not None:
@@ -262,7 +324,12 @@ def _fetch_file(entry: dict, target: Path, keys: Keys):
     tmp = target.with_name(f".{target.name}.jace-sync")
     try:
         with open(tmp, "wb") as out:
-            for pid in entry["pieces"]:
+            if entry.get("pack"):
+                pid, offset, length = entry["pack"]
+                _tick(0, target.name)
+                out.write(_pack(pid, keys)[offset:offset + length])
+                _tick(length, target.name)
+            for pid in entry.get("pieces", []):
                 _tick(0, target.name)
                 data = keys.open(_download_piece(pid))
                 out.write(data)
@@ -319,6 +386,8 @@ def _same_content(a: dict | None, b: dict | None) -> bool:
         return bool(a.get("deleted")) == bool(b.get("deleted"))
     if "link" in a or "link" in b:
         return a.get("link") == b.get("link")
+    if a.get("hash") and b.get("hash"):
+        return a["hash"] == b["hash"] and a.get("mode") == b.get("mode")
     return a.get("pieces") == b.get("pieces") and a.get("mode") == b.get("mode")
 
 
@@ -496,7 +565,7 @@ def _sync_locked(state: dict) -> list[str]:
         known = set()
         for f in manifest.get("folders", {}).values():
             for e in f.values():
-                known.update(e.get("pieces", []))
+                known.update(_refs(e))
         todo = folders(state, manifest)
         scans = {name: scan(root) for name, (root, _rule) in todo.items()}
         PROGRESS = Progress(sum(_to_move(todo[n][0], scans[n], index.get(n, {}),
@@ -539,6 +608,8 @@ def _sync_folder(root: Path, rule: str, remote: dict, base: dict, keys: Keys, kn
     local = scan(root) if local is None else local
     device = socket.gethostname()
     new_base = {}
+    packer = Packer(keys, known)
+    packed = []                      # (rel, entry, local) of small files waiting for their pack
     for rel in sorted(set(local) | set(base) | set(remote)):
         L, B, R = local.get(rel), base.get(rel), remote.get(rel)
         path = root / rel
@@ -579,10 +650,13 @@ def _sync_folder(root: Path, rule: str, remote: dict, base: dict, keys: Keys, kn
             if L is None:
                 remote[rel] = {"deleted": time.time(), "updated_at": time.time(), "device": device}
                 continue
-            entry = _entry(path, L, keys, upload=True, known=known)
+            entry = _entry(path, L, keys, upload=True, known=known, packer=packer)
             entry.update(updated_at=time.time(), device=device)
             remote[rel] = entry
-            new_base[rel] = dict(entry, **{k: L[k] for k in ("size", "mtime") if k in L})
+            if "pack" in entry or "pieces" in entry or "link" in entry:
+                new_base[rel] = dict(entry, **{k: L[k] for k in ("size", "mtime") if k in L})
+            else:
+                packed.append((rel, entry, L))
             counts["up"] += 1
         elif changed_there:
             if R.get("deleted"):
@@ -593,14 +667,25 @@ def _sync_folder(root: Path, rule: str, remote: dict, base: dict, keys: Keys, kn
             _fetch_file(R, path, keys)
             new_base[rel] = _after_write(path, R)
             counts["down"] += 1
+    packer.flush()
+    for rel, entry, L in packed:
+        new_base[rel] = dict(entry, **{k: L[k] for k in ("size", "mtime") if k in L})
     return new_base
 
 
-def _entry(path: Path, local: dict, keys: Keys, upload=False, known=None) -> dict:
+def _entry(path: Path, local: dict, keys: Keys, upload=False, known=None, packer=None) -> dict:
+    """What a file here is, for the folder's list. upload=True sends it: small files join the
+    packer (their "pack" is filled in when it goes up), bigger ones go up in pieces."""
     if "link" in local:
         return {"link": local["link"]}
-    pieces = _send_file(path, keys, known) if upload else _pieces(path, keys)
-    return {"pieces": pieces, "size": local["size"], "mode": local["mode"], "mtime": local["mtime"]}
+    entry = {"hash": keys.file_hash(path), "size": local["size"], "mode": local["mode"], "mtime": local["mtime"]}
+    if not upload:
+        entry["pieces"] = _pieces(path, keys)        # to compare with lists from older versions
+    elif packer is not None and local["size"] < SMALL:
+        packer.add(path, entry)
+    else:
+        entry["pieces"] = _send_file(path, keys, known)
+    return entry
 
 
 def _after_write(path: Path, entry: dict) -> dict:
@@ -618,7 +703,7 @@ def _clean_up(manifest: dict):
     used = set()
     for f in manifest.get("folders", {}).values():
         for e in f.values():
-            used.update(e.get("pieces", []))
+            used.update(_refs(e))
     try:
         stored = usage().get("files", [])
     except cloudsync.SyncError:
