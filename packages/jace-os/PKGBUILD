@@ -51,6 +51,8 @@ optdepends=(
   'jace-launcher-bin: Jace Launcher'
   'jace-social-bin: Jace Social'
   'jace-store-bin: Jace Store'
+  'jace-passwords-bin: Jace Passwords'
+  'jace-live-bin: Jace Live'
 )
 backup=(etc/jace-os/account.conf etc/jace-os/clamav/clamd.conf etc/greetd/jace-os.toml etc/greetd/jace-os-regreet.toml)
 
@@ -77,7 +79,7 @@ package() {
     ! -name '*.py' ! -name 'os-release' -exec chmod 755 {} +
   find "$pkgdir" -name '__pycache__' -prune -exec rm -rf {} +
   # The app PKGBUILDs, so refresh-apps can build a new release before the repository has it.
-  for p in jace-launcher-bin jace-social-bin jace-store-bin jace-browser-bin zen-browser-bin yay-bin; do
+  for p in jace-launcher-bin jace-social-bin jace-store-bin jace-passwords-bin jace-live-bin jace-browser-bin zen-browser-bin yay-bin; do
     install -Dm644 "$startdir/../$p/PKGBUILD" "$pkgdir/usr/share/jace-os/packages/$p/PKGBUILD"
   done
   install -Dm755 "$srcdir/jace-face-module.so" "$pkgdir/usr/lib/gtklock/jace-face-module.so"

@@ -1,0 +1,65 @@
+# Maintainer: Jace <https://github.com/okjace>
+# Jace Live for Jace OS: the official AppImage, unpacked into /opt so it runs like a
+# normal app (no setup wizard; Jace OS updates it through pacman).
+# tools/build-packages.sh sets pkgver to the newest GitHub release.
+pkgname=jace-live-bin
+_cmd=jace-live
+_name="Jace Live"
+_repo=okjace/jace-games-desktop
+# The Wayland app id the app reports, so the top bar shows its own icon.
+_appid="Jace Live"
+_mime=""
+_stem=JaceLive
+pkgver=1.1.0
+_tag=v${pkgver}
+pkgrel=1
+pkgdesc="Jace Live: arcade games, multiplayer and live quiz games from Jace"
+arch=(x86_64)
+url="https://github.com/${_repo}"
+license=(MIT)
+depends=(glibc hicolor-icon-theme)
+makedepends=(squashfs-tools python)
+provides=("$_cmd")
+conflicts=("$_cmd")
+options=(!strip !debug)
+source=("${_stem}-${pkgver}.AppImage::https://github.com/${_repo}/releases/download/${_tag}/${_stem}-${pkgver}-x86_64.AppImage")
+noextract=("${_stem}-${pkgver}.AppImage")
+sha256sums=('SKIP')
+
+prepare() {
+  # Unpack the AppImage's squashfs without running it: it starts right after the ELF runtime.
+  local file="${_stem}-${pkgver}.AppImage" offset
+  offset=$(python3 -c 'import struct,sys
+d = open(sys.argv[1], "rb").read(4096)
+shoff = struct.unpack_from("<Q", d, 0x28)[0]
+size, num = struct.unpack_from("<HH", d, 0x3A)
+print(shoff + size * num)' "$file")
+  rm -rf squashfs-root
+  unsquashfs -q -n -o "$offset" -d squashfs-root "$file"
+}
+
+package() {
+  install -d "$pkgdir/opt" "$pkgdir/usr/bin"
+  cp -a squashfs-root "$pkgdir/opt/$_cmd"
+  chmod -R u+rwX,go+rX,go-w "$pkgdir/opt/$_cmd"
+
+  cat > "$pkgdir/usr/bin/$_cmd" <<WRAPPER
+#!/bin/sh
+exec /opt/$_cmd/AppRun "\$@"
+WRAPPER
+  chmod 755 "$pkgdir/usr/bin/$_cmd"
+
+  local desktop icon
+  desktop=$(find squashfs-root -maxdepth 1 -name '*.desktop' | head -n1)
+  icon=$(readlink -f squashfs-root/.DirIcon)
+  install -Dm644 "$icon" "$pkgdir/usr/share/icons/hicolor/256x256/apps/$_cmd.png"
+  install -Dm644 "$icon" "$pkgdir/usr/share/icons/hicolor/256x256/apps/$_appid.png"
+  install -d "$pkgdir/usr/share/applications"
+  sed -e "s|^Exec=.*|Exec=$_cmd %U|" -e "s|^Icon=.*|Icon=$_cmd|" -e '/^X-AppImage/d' \
+    "$desktop" > "$pkgdir/usr/share/applications/$_cmd.desktop"
+  sed -i '/^StartupWMClass=/d' "$pkgdir/usr/share/applications/$_cmd.desktop"
+  echo "StartupWMClass=$_appid" >> "$pkgdir/usr/share/applications/$_cmd.desktop"
+  if [ -n "$_mime" ] && ! grep -q '^MimeType=' "$pkgdir/usr/share/applications/$_cmd.desktop"; then
+    echo "MimeType=$_mime" >> "$pkgdir/usr/share/applications/$_cmd.desktop"
+  fi
+}

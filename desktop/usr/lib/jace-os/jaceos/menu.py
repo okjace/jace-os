@@ -43,6 +43,8 @@ DEFAULTS = {
         "jace-launcher.desktop",
         "jace-social.desktop",
         "jace-store.desktop",
+        "jace-passwords.desktop",
+        "jace-live.desktop",
         "org.gnome.Nautilus.desktop",
         "org.gnome.Ptyxis.desktop",
         "jace-settings.desktop",

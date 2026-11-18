@@ -4,7 +4,7 @@
 
 **Website:** https://okjace.github.io/jace-os/ · **Download:** [latest release](https://github.com/okjace/jace-os/releases/latest)
 
-An Arch-based Linux that works like you expect: windows behave like they do on Windows, a niri-style top bar, a start menu on the Windows key, one Settings app for everything, and updates that install themselves. Jace Launcher, Jace Social, Jace Store, Jace Browser and your Jace account are built in.
+An Arch-based Linux that works like you expect: windows behave like they do on Windows, a niri-style top bar, a start menu on the Windows key, one Settings app for everything, and updates that install themselves. Jace Launcher, Jace Social, Jace Store, Jace Passwords, Jace Live, Jace Browser and your Jace account are built in.
 
 ## Features
 
@@ -24,7 +24,7 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **A top bar you can change**: Settings → Top bar turns modules on and off (Now Playing, weather, processor, memory, Do not disturb, Keep awake and more), moves it to the bottom, and sets the clock (12 or 24 hours, seconds, date). Click the clock (or Win+N) for the calendar.
 - **Face unlock**: Settings → Face unlock sets up Howdy, the Linux Windows Hello, for the lock screen, sign-in and password prompts. Best with an infrared camera.
 - **Automatic updates**: `jace-update.timer` installs Arch updates (the Linux kernel and security fixes), new Jace app and Jace Browser releases, and Flatpak updates (system-wide and each person's own) every few hours while plugged in. You can see and install them yourself in Settings → Updates, with a progress bar, including apps you installed from the AUR with yay (those are built as you, so they're only updated when you click Update). New Jace app releases show up there as soon as they're on GitHub.
-- **The Jace apps**: Jace Launcher, Jace Social and Jace Store come preinstalled, along with [Jace Browser](https://github.com/okjace/jace-browser) as the default browser and [yay](https://github.com/Jguer/yay) for the AUR (Jace Store's AUR source uses it). The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
+- **The Jace apps**: Jace Launcher, Jace Social, Jace Store, Jace Passwords and Jace Live (arcade, multiplayer and live quiz games) come preinstalled, along with [Jace Browser](https://github.com/okjace/jace-browser) as the default browser and [yay](https://github.com/Jguer/yay) for the AUR (Jace Store's AUR source uses it). The apps that come with Jace OS are added to Jace Store's My apps as custom apps.
 - **Sign in with Jace**: the account page in Settings and the account button on the top bar sign in to [Jace](https://jaceo.vercel.app) (OAuth 2.0 with PKCE). Your Jace display name and photo become this computer's account name and picture (you can turn that off), and the top bar's corner shows your picture and name right away. Not signed in? It shows your account on this computer. Jace apps can ask Jace OS to sign them in too (`jace-account --token-for`).
 - **Cloud sync**: Settings → Jace account keeps what you choose the same on all your Jace OS computers: your look, wallpaper, desktop (top bar, start menu, shortcuts, windows, keyboard and mouse) and apps. It can also sync files: Documents & Desktop, your Claude sessions (chats, edit history and memory) and project folders you pick, keeping permissions and symlinks and skipping build folders; something deleted on one computer goes to the Trash on the others. Everything is end-to-end encrypted with a sync passphrase (AES-256-GCM), so neither Jace nor its file storage (Backblaze B2) can read it. Setup offers it right after Sign in with Jace, so a new computer brings everything in.
 - **Users**: pick a ready-made picture, build your own (colours and an emoji or your initials) or use a photo; change your name; add people with a password, set passwords, and delete accounts in Settings → Users.
@@ -73,7 +73,7 @@ Server = https://github.com/okjace/jace-os/releases/download/repo
 ```
 
 ```bash
-sudo pacman -Syu jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-browser-bin yay-bin
+sudo pacman -Syu jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-passwords-bin jace-live-bin jace-browser-bin yay-bin
 sudo /usr/lib/jace-os/enable-splash
 ```
 
@@ -85,7 +85,7 @@ Then choose **Jace OS** on the login screen.
 |---|---|
 | `desktop/` | Everything the `jace-os` package installs, laid out like `/`: the labwc, Waybar, mako and fuzzel configs (`usr/share/jace-os/xdg`), the Jace OS apps (`usr/lib/jace-os/jaceos`), scripts (`usr/bin`), the Plymouth theme, the login screen, wallpapers, the update timer and the installer preset. |
 | `desktop/usr/lib/jace-os/jaceos/` | The Python + GTK 4 + libadwaita apps: `settings.py`, `menu.py` (start menu), `setup.py` (Setup, the first start), `installer.py` (with the `install-backend` script), `account.py` (Sign in with Jace), `updates.py`, `antivirus.py`, `store.py` (Jace Store, Flathub and Arch in Settings) and `appimage.py`. |
-| `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin`, `jace-browser-bin`, `zen-browser-bin` (kept for computers that still have it) and `yay-bin`, which unpack each app's official release. |
+| `packages/` | PKGBUILDs: `jace-os`, plus `jace-launcher-bin`, `jace-social-bin`, `jace-store-bin`, `jace-passwords-bin`, `jace-live-bin`, `jace-browser-bin`, `zen-browser-bin` (kept for computers that still have it) and `yay-bin`, which unpack each app's official release. |
 | `archiso/` | The live USB profile (packages, live user and auto-login). `build.sh` combines it with archiso's `releng` boot setup. |
 | `site/` | The website on GitHub Pages. |
 | `tools/build-packages.sh` | Builds the package repository. |

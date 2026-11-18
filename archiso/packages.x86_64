@@ -61,5 +61,7 @@ jace-os
 jace-launcher-bin
 jace-social-bin
 jace-store-bin
+jace-passwords-bin
+jace-live-bin
 jace-browser-bin
 yay-bin

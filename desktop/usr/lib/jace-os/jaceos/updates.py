@@ -144,6 +144,8 @@ RELEASES = {
     "jace-launcher-bin": ("okjace/jace-launcher", "v"),
     "jace-social-bin": ("okjace/jace-social", "app-v"),
     "jace-store-bin": ("okjace/jace-store", "desktop-v"),
+    "jace-passwords-bin": ("okjace/jace-passwords", "v"),
+    "jace-live-bin": ("okjace/jace-games-desktop", "v"),
     "jace-browser-bin": ("okjace/jace-browser", "v"),
     "yay-bin": ("Jguer/yay", "v"),
 }

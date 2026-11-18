@@ -26,6 +26,8 @@ JACE_APPS = [
     ("jace-launcher-bin", "jace-launcher", "Jace Launcher", "Minecraft with mods, modpacks and skins"),
     ("jace-social-bin", "jace-social", "Jace Social", "Friends, chats, servers and voice calls"),
     ("jace-store-bin", "jace-store", "Jace Store", "Get apps and games"),
+    ("jace-passwords-bin", "jace-passwords", "Jace Passwords", "Your passwords, on all your devices"),
+    ("jace-live-bin", "jace-live", "Jace Live", "Arcade games, multiplayer and live quiz games"),
 ]
 
 
