@@ -42,6 +42,9 @@ CHUNK = 8 * 1024 * 1024
 # files (source code, .git objects, chat logs) then take a few dozen uploads instead of
 # thousands, each of which costs three trips over the internet.
 SMALL = 256 * 1024
+# During a long sync, the folder list is saved at most this often (seconds), so a cancelled or
+# interrupted first sync keeps what's done without saving after every folder.
+SAVE_EVERY = 120
 MANIFEST = "os-files"
 HOME = Path.home()
 # Build output and caches: made again when you build, and often huge.
@@ -491,17 +494,68 @@ def remove_project(name: str):
 
 # --- syncing ------------------------------------------------------------------------------------------
 
+# The folder list (which files, their pieces, permissions, …) lives in your encrypted file
+# storage (Backblaze), not in Jace's database: the "os-files" collection only holds a pointer
+# to the newest list (a few hundred bytes). Each computer keeps a copy of the list it last saw,
+# so an unchanged list is never downloaded again.
+
+def _cache_file() -> Path:
+    return data_dir() / "files-list.json"
+
+
+def _cached() -> dict:
+    try:
+        return json.loads(_cache_file().read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _remember(version: int, piece: str | None, manifest: dict):
+    fd = os.open(_cache_file(), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as out:
+        json.dump({"version": version, "piece": piece, "manifest": manifest}, out, separators=(",", ":"))
+
+
 def _load_manifest(keys_key: bytes):
-    record = cloudsync._get(MANIFEST)
+    """(folder list, its version in Jace). Asks with the version it has, so an unchanged list
+    costs Jace nothing (304); a changed pointer means one download from Backblaze."""
+    cache = _cached()
+    record = cloudsync._get(MANIFEST, have=cache.get("version") or None)
+    if record is cloudsync.NOT_MODIFIED:
+        return cache["manifest"], cache["version"]
     if not record:
         return {"folders": {}, "projects": []}, 0
-    raw = cloudsync.decrypt(keys_key, record["payload"])
-    return json.loads(zlib.decompress(raw)), record["version"]
+    inner = json.loads(zlib.decompress(cloudsync.decrypt(keys_key, record["payload"])))
+    if "piece" not in inner:                                 # an older Jace OS kept the whole list here
+        manifest, piece = inner, None
+    elif inner["piece"] == cache.get("piece"):
+        manifest, piece = cache["manifest"], inner["piece"]
+    else:
+        piece = inner["piece"]
+        manifest = json.loads(zlib.decompress(Keys(keys_key).open(_download_piece(piece))))
+    _remember(record["version"], piece, manifest)
+    return manifest, record["version"]
 
 
 def _save_manifest(keys_key: bytes, manifest: dict, version: int) -> int | None:
-    raw = zlib.compress(json.dumps(manifest, separators=(",", ":")).encode(), 9)
-    return cloudsync._put(MANIFEST, cloudsync.encrypt(keys_key, raw), version)
+    """Uploads the list to your file storage and points "os-files" at it. None if another
+    computer saved first. The list it replaces is deleted (it's never needed again)."""
+    keys = Keys(keys_key)
+    raw = zlib.compress(json.dumps(manifest, separators=(",", ":"), sort_keys=True).encode(), 9)
+    piece = keys.piece_id(raw)
+    _upload_piece(piece, keys.seal(raw))
+    pointer = zlib.compress(json.dumps({"piece": piece, "size": len(raw)}).encode())
+    new_version = cloudsync._put(MANIFEST, cloudsync.encrypt(keys_key, pointer), version)
+    if new_version is None:
+        return None
+    old = _cached().get("piece")
+    _remember(new_version, piece, manifest)
+    if old and old != piece:
+        try:
+            _files_call("DELETE", f"/{old}")
+        except cloudsync.SyncError:
+            pass                                             # the daily clean-up gets it
+    return new_version
 
 
 def enabled(state: dict | None = None) -> bool:
@@ -532,6 +586,21 @@ def sync() -> list[str]:
         PROGRESS = None
         (_run_dir() / "files-cancel").unlink(missing_ok=True)
         lock.close()
+
+
+def _saved_index() -> dict:
+    try:
+        return json.loads(_index_file().read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _fingerprint(manifest: dict) -> str:
+    """To tell whether the folder list changed (without saving it to find out)."""
+    data = {k: v for k, v in manifest.items()}
+    data["folders"] = {name: {rel: {k: v for k, v in e.items() if k not in ("updated_at",)}
+                              for rel, e in f.items()} for name, f in manifest.get("folders", {}).items()}
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
 def _to_move(root: Path, local: dict, base: dict, remote: dict) -> int:
@@ -572,23 +641,34 @@ def _sync_locked(state: dict) -> list[str]:
                                          manifest.get("folders", {}).get(n, {})) for n in todo))
         counts = {"up": 0, "down": 0, "conflicts": 0, "deleted": 0}
         clashed = False
-        for name, (root, rule) in todo.items():
+        saved_as = _fingerprint(manifest) if version else None   # what Jace has now
+        last_save = time.time()
+        names = list(todo)
+        for i, name in enumerate(names):
+            root, rule = todo[name]
             remote = manifest.setdefault("folders", {}).setdefault(name, {})
             index[name] = _sync_folder(root, rule, remote, index.get(name, {}), keys, known, counts, scans[name])
-            # Saved to Jace straight away, so a cancelled or interrupted sync keeps this folder.
-            new_version = _save_manifest(key, manifest, version)
-            if new_version is None:
-                clashed = True            # another computer synced at the same time: again, with theirs
-                break
-            version = new_version
-            _index_file().write_text(json.dumps(index))
+            # Only a changed list is saved: during a long first sync every couple of minutes (so a
+            # cancelled or interrupted sync keeps what's done), otherwise once, at the end.
+            last = i == len(names) - 1
+            if (last or time.time() - last_save >= SAVE_EVERY) and _fingerprint(manifest) != saved_as:
+                new_version = _save_manifest(key, manifest, version)
+                if new_version is None:
+                    clashed = True        # another computer synced at the same time: again, with theirs
+                    break
+                version, saved_as, last_save = new_version, _fingerprint(manifest), time.time()
+                # What this computer last synced is written only once Jace has it, so the two
+                # never disagree.
+                _index_file().write_text(json.dumps({n: index[n] for n in names[:i + 1] if n in index} |
+                                                    {n: v for n, v in _saved_index().items() if n not in names[:i + 1]}))
         if clashed:
             continue
-        if not todo:
+        if not todo and _fingerprint(manifest) != saved_as:
             new_version = _save_manifest(key, manifest, version)
             if new_version is None:
                 continue
             version = new_version
+        if _fingerprint(manifest) == saved_as or not todo:
             _index_file().write_text(json.dumps(index))
         state = cloudsync.load_state()
         state["removed_projects"] = []
@@ -596,7 +676,11 @@ def _sync_locked(state: dict) -> list[str]:
         state["files_version"] = version
         state["files_error"] = ""
         cloudsync.save_state(state)
-        _clean_up(manifest)
+        if time.time() - state.get("files_cleaned_at", 0) > 86400:       # once a day
+            _clean_up(manifest)
+            state = cloudsync.load_state()
+            state["files_cleaned_at"] = time.time()
+            cloudsync.save_state(state)
         return [f"Files: {counts['up']} sent, {counts['down']} received" +
                 (f", {counts['deleted']} moved to the Trash" if counts["deleted"] else "") +
                 (f", {counts['conflicts']} kept as conflict copies" if counts["conflicts"] else "")]
@@ -704,6 +788,8 @@ def _clean_up(manifest: dict):
     for f in manifest.get("folders", {}).values():
         for e in f.values():
             used.update(_refs(e))
+    if _cached().get("piece"):
+        used.add(_cached()["piece"])                         # the folder list itself
     try:
         stored = usage().get("files", [])
     except cloudsync.SyncError:

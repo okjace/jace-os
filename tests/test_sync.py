@@ -35,12 +35,18 @@ transfers = []          # pieces actually sent to "Backblaze" (not ones it alrea
 COLLECTIONS = ["keys", "bookmarks", "os-keys", "os-look", "os-wallpaper", "os-desktop", "os-apps", "os-files"]
 
 
-def fake_sync(method, path, body=None, if_match=None):
+db_log = []            # (method, collection, bytes) for every request to Jace's database
+
+
+def fake_sync(method, path, body=None, if_match=None, if_none_match=None):
     c = path.strip("/")
+    db_log.append((method, c, len(json.dumps(body)) if body else 0))
     if method == "GET" and not c:
         return 200, {"collections": COLLECTIONS,
                      "records": [{"collection": k, "version": v["version"]} for k, v in store.items()]}
     if method == "GET":
+        if c in store and if_none_match == store[c]["version"]:
+            return 304, {}                       # the version you have is the newest: no body
         return (200, dict(store[c])) if c in store else (404, {})
     if method == "PUT":
         current = store.get(c, {}).get("version", 0)
@@ -88,6 +94,7 @@ TRASH.mkdir()
 fs._trash = lambda p: shutil.move(str(p), TRASH / p.name)
 fs.CHUNK = 64 * 1024            # small pieces, so files get split
 fs.SMALL = 16 * 1024            # files under 16 KB get packed together
+fs.SAVE_EVERY = 0               # save the folder list after every folder (it's every 2 minutes for real)
 
 
 def computer(name: str) -> Path:
@@ -217,7 +224,8 @@ before = len(transfers)
 fs.sync()
 check("the next sync carries on", len(manifest()["folders"]["proj2"]) == 6)
 # 12 files of 100 KB are 24 pieces of 64 KB; 14 went before Cancel, so at most 10 are left.
-check("without sending finished pieces again", 0 < len(transfers) - before <= 24 - 14)
+# (+2: the folder list itself goes to the file storage too, once per folder saved.)
+check("without sending finished pieces again", 0 < len(transfers) - before <= 24 - 14 + 2)
 fs._upload_piece = real_upload
 
 # --- small files are packed together -----------------------------------------------------------------
@@ -247,6 +255,30 @@ computer("d")
 fs.sync()
 check("a changed small file comes across", (d / "code/src/file7.py").read_text() == "changed on E\n")
 check("the same files on two computers aren't a clash", not list((d / "code/src").glob("*conflict*")))
+
+# --- what reaches Jace's database ----------------------------------------------------------------------
+
+print("Jace's database")
+computer("d")
+fs.sync()                                     # anything left from the small-files test
+db_log.clear()
+fs.sync()
+check("a sync with nothing new saves nothing", not [x for x in db_log if x[0] == "PUT"])
+check("and downloads nothing (Jace answers 304)", [x for x in db_log if x[1] == "os-files"] == [("GET", "os-files", 0)])
+check(f"Jace only stores a small pointer ({len(store['os-files']['payload'])} bytes)",
+      len(store["os-files"]["payload"]) < 600)
+lists_before = set(blobs)
+(d / "code/src/file3.py").write_text("one change\n")
+db_log.clear()
+fs.sync()
+saves = [x for x in db_log if x[0] == "PUT"]
+check(f"one changed file is one small save ({saves[0][2] if saves else 0} bytes)",
+      len(saves) == 1 and saves[0][2] < 1000)
+check("the replaced folder list is removed", len(set(blobs) - lists_before) == 2 and len(lists_before - set(blobs)) == 1)
+e2 = computer("e")
+db_log.clear()
+fs.sync()
+check("another computer gets the change", (e2 / "code/src/file3.py").read_text() == "one change\n")
 
 shutil.rmtree(TMP, ignore_errors=True)
 print("\nAll passed." if not FAILED else f"\n{len(FAILED)} failed.")

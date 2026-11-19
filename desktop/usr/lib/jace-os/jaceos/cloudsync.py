@@ -53,6 +53,11 @@ DESKTOP_FILES = ["bar.json", "menu.json", "shortcuts.json", "idle", "nightlight"
 LABWC_FILES = ["rc.xml", "environment"]
 MAX_WALLPAPER = 5 * 1024 * 1024        # Jace allows 8 MB per collection, after encryption and base64
 INTERVAL = 15 * 60
+# Jace pays for every byte its database sends and receives, so changes are batched: at most one
+# sync every 5 minutes after a change, and other computers' changes are looked for every 5 minutes
+# (one small request that lists versions, no data).
+MIN_GAP = 5 * 60
+NOT_MODIFIED = object()
 
 
 class SyncError(Exception):
@@ -143,8 +148,10 @@ def _token() -> str:
     return acct["access_token"]
 
 
-def _call(method: str, path: str, body: dict | None = None, if_match: int | None = None):
-    """(status, json) for /api/oauth/sync<path>."""
+def _call(method: str, path: str, body: dict | None = None, if_match: int | None = None,
+          if_none_match: int | None = None):
+    """(status, json) for /api/oauth/sync<path>. if_none_match: the version you have; Jace answers
+    304 with no body if that's still the newest."""
     url = account.settings()["url"] + "/api/oauth/sync" + path
     headers = {"Authorization": f"Bearer {_token()}", "Accept": "application/json",
                "User-Agent": account.USER_AGENT}
@@ -154,11 +161,15 @@ def _call(method: str, path: str, body: dict | None = None, if_match: int | None
         headers["Content-Type"] = "application/json"
     if if_match is not None:
         headers["If-Match"] = f'"{if_match}"'
+    if if_none_match is not None:
+        headers["If-None-Match"] = f'"{if_none_match}"'
     req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             return r.status, json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
+        if e.code == 304:
+            return 304, {}
         try:
             info = json.loads(e.read() or b"{}")
         except ValueError:
@@ -182,8 +193,12 @@ def remote_versions() -> dict:
     return {r["collection"]: r for r in info.get("records", [])}
 
 
-def _get(collection: str) -> dict | None:
-    status, info = _call("GET", "/" + collection)
+def _get(collection: str, have: int | None = None):
+    """A collection's record; None if it's never been written; NOT_MODIFIED if `have` (the
+    version you already have) is still the newest (Jace sends nothing then)."""
+    status, info = _call("GET", "/" + collection, if_none_match=have)
+    if status == 304:
+        return NOT_MODIFIED
     return info if status == 200 else None
 
 
@@ -417,16 +432,29 @@ def note_changes(state: dict) -> bool:
 
 
 def daemon():
-    """At sign-in, every 15 minutes, and a minute after something changes, here or on one of
-    your other computers."""
+    """At sign-in, then: changes made here go up at most every 5 minutes (batched), changes from
+    your other computers are looked for every 5 minutes, and everything's checked every 15."""
     from jaceos import filesync
-    last = last_files = 0.0
+    last = last_files = last_look = 0.0
     while True:
         state = load_state()
+        now = time.time()
         if state["enabled"] and has_key():
+            # Changed on another computer? One small request every 5 minutes says.
+            remote_new = remote_files_new = False
+            if now - last_look >= MIN_GAP:
+                last_look = now
+                try:
+                    versions = remote_versions()
+                    remote_new = any(versions.get(col, {}).get("version", 0) > state["versions"].get(col, 0)
+                                     for col, *_ in CATEGORIES.values())
+                    remote_files_new = (versions.get(filesync.MANIFEST, {}).get("version", 0)
+                                        != state.get("files_version", 0))
+                except SyncError as e:
+                    state["last_error"] = str(e)
             changed = note_changes(state)
             save_state(state)
-            if changed or time.time() - last > INTERVAL:
+            if remote_new or now - last > INTERVAL or (changed and now - last >= MIN_GAP):
                 try:
                     sync()
                 except SyncError as e:
@@ -437,10 +465,8 @@ def daemon():
             state = load_state()
             if filesync.enabled(state):
                 try:
-                    due = time.time() - last_files > INTERVAL or filesync.changed_here(state)
-                    if not due:              # changed on another computer?
-                        seen = remote_versions().get(filesync.MANIFEST, {}).get("version", 0)
-                        due = seen != state.get("files_version", 0)
+                    due = (remote_files_new or now - last_files > INTERVAL or
+                           (now - last_files >= MIN_GAP and filesync.changed_here(state)))
                     if due:
                         filesync.sync()
                         last_files = time.time()
