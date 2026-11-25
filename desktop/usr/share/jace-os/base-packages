@@ -1,0 +1,7 @@
+# What a new Jace OS install has (install-backend installs these, plus what they need).
+# A reset (factory-reset) removes every other app, so the computer is like new again.
+base linux linux-firmware sof-firmware mkinitcpio sudo nano
+jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-passwords-bin jace-live-bin
+jace-browser-bin yay-bin
+mesa vulkan-radeon vulkan-intel vulkan-nouveau intel-media-driver libva-mesa-driver
+btrfs-progs dosfstools exfatprogs ntfs-3g

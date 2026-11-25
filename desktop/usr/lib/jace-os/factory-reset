@@ -4,14 +4,45 @@
 #
 #   factory-reset schedule   (pkexec, asks for your password) set it up and restart now
 #   factory-reset run        (greetd-start, at the next start, before anyone signs in)
-#                            remove every account and its files, saved Wi-Fi networks and
-#                            face unlock, then start Setup again
+#                            remove every account and its files, every app that didn't come
+#                            with Jace OS, saved Wi-Fi networks and face unlock, then start
+#                            Setup again
 #
-# Apps and updates stay installed. Nothing happens until the computer restarts.
+# Updates stay installed. Nothing happens until the computer restarts.
 set -uo pipefail
 state=/var/lib/jace-os
 
 [ "$(id -u)" -eq 0 ] || exec pkexec "$0" "$@"
+
+# Every app that didn't come with Jace OS: Flatpaks, and packages (Arch and the AUR) that
+# aren't in /usr/share/jace-os/base-packages or needed by them. Kernels, the boot loader, disk
+# encryption and processor fixes always stay, so the computer still starts.
+remove_apps() {
+  echo "jace-os: removing apps"
+  if command -v flatpak >/dev/null; then
+    flatpak uninstall --system --all --noninteractive --delete-data >/dev/null 2>&1 || true
+  fi
+  rm -f /var/lib/pacman/db.lck
+  local keep=() p
+  while read -r p; do keep+=("$p"); done < <(sed 's/#.*//' /usr/share/jace-os/base-packages | tr -s ' \t' '\n' | sed '/^$/d')
+  keep+=(grub efibootmgr cryptsetup intel-ucode amd-ucode lvm2 mdadm)
+  # Everything installed becomes "only needed by something"; then what a new install has is
+  # "installed on purpose" again, and whatever nothing needs any more is removed.
+  pacman -Qeq | pacman -D --asdeps - >/dev/null 2>&1 || true
+  for p in "${keep[@]}" $(pacman -Qq | grep -E '^linux(-lts|-zen|-hardened|-rt)?(-headers)?$'); do
+    pacman -Qq "$p" >/dev/null 2>&1 && pacman -D --asexplicit "$p" >/dev/null 2>&1
+  done
+  local orphans
+  for _ in 1 2 3; do
+    orphans=$(pacman -Qdtq 2>/dev/null) || break
+    [ -n "$orphans" ] || break
+    echo "$orphans" | pacman -Rns --noconfirm - >/dev/null 2>&1 || {
+      # One that can't go (another needs it oddly): keep it and remove the rest.
+      for p in $orphans; do pacman -Rns --noconfirm "$p" >/dev/null 2>&1 || pacman -D --asexplicit "$p" >/dev/null 2>&1; done
+    }
+  done
+  pacman -Scc --noconfirm >/dev/null 2>&1 || true            # downloaded packages: free the space
+}
 
 case "${1:-}" in
   schedule)
@@ -31,6 +62,7 @@ case "${1:-}" in
       [ -n "$home" ] && [ "$home" != / ] && [[ "$home" == /home/* ]] && rm -rf -- "$home"
       rm -f "/var/lib/AccountsService/users/$name" "/var/lib/AccountsService/icons/$name"
     done < <(getent passwd)
+    remove_apps
     # Signing in automatically, saved Wi-Fi networks, face unlock, quarantined files.
     sed -i '/^\[initial_session\]/,$d' /etc/greetd/jace-os.toml
     rm -f /etc/NetworkManager/system-connections/*

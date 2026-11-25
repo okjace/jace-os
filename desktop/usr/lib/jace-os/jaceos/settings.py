@@ -3072,7 +3072,7 @@ class SettingsWindow(Adw.ApplicationWindow):
                              "how they started. Your files, apps and Jace account stay.", "Reset…",
                              self._reset_settings, icon="edit-undo-symbolic"))
         everything = button_row("Remove everything", "Deletes every account on this computer and all their "
-                                "files, then starts Setup again, like a new computer. Apps stay installed.",
+                                "files and every app you added, then starts Setup again, like a new computer.",
                                 "Reset…", self._factory_reset, icon="edit-delete-symbolic")
         reset.add(everything)
         page.add(reset)
@@ -3110,8 +3110,9 @@ class SettingsWindow(Adw.ApplicationWindow):
     def _factory_reset(self):
         d = Adw.AlertDialog(heading="Remove everything?",
                             body="Every account on this computer and all of its files (documents, pictures, "
-                                 "downloads) are deleted, along with saved Wi-Fi networks and face unlock. Apps "
-                                 "stay installed. The computer restarts and Setup starts, like a new computer.\n\n"
+                                 "downloads) are deleted, along with every app you added (Jace OS's own apps stay), "
+                                 "saved Wi-Fi networks and face unlock. The computer restarts and Setup starts, "
+                                 "like a new computer.\n\n"
                                  "Back up anything you want to keep first. This can't be undone.")
         d.add_response("cancel", "Cancel")
         d.add_response("reset", "Remove everything and restart")

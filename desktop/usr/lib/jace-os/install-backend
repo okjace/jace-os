@@ -116,11 +116,9 @@ pacman --config "$conf" -Sy --noconfirm --needed archlinux-keyring >/dev/null 2>
 ucode=()
 grep -q GenuineIntel /proc/cpuinfo && ucode=(intel-ucode)
 grep -q AuthenticAMD /proc/cpuinfo && ucode=(amd-ucode)
-packages=(base linux linux-firmware sof-firmware "${ucode[@]}" mkinitcpio sudo nano
-          jace-os jace-launcher-bin jace-social-bin jace-store-bin jace-passwords-bin jace-live-bin
-          jace-browser-bin yay-bin
-          mesa vulkan-radeon vulkan-intel vulkan-nouveau intel-media-driver libva-mesa-driver
-          btrfs-progs dosfstools exfatprogs ntfs-3g)
+# The same list a reset goes back to (/usr/share/jace-os/base-packages).
+mapfile -t packages < <(sed 's/#.*//' /usr/share/jace-os/base-packages | tr -s ' \t' '\n' | sed '/^$/d')
+packages+=("${ucode[@]}")
 [ "$encrypt" = true ] && packages+=(cryptsetup)
 [ "$uefi" = yes ] && packages+=(efibootmgr) || packages+=(grub)
 

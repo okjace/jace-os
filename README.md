@@ -19,7 +19,7 @@ An Arch-based Linux that works like you expect: windows behave like they do on W
 - **Storage**: Settings → Storage shows how full each drive is and what's using space, and frees it up: the trash, old package downloads, AUR build files, picture previews, unused packages and Flatpak runtimes. It can empty old trash by itself and warns you when a drive is almost full.
 - **Menus that match**: right-click the desktop for the Jace OS menu, and every GTK app's menus (right-click, ⋮ and tray menus) get the Jace green and rounder, roomier items.
 - **Languages**: Setup and Settings → Language switch the whole computer to 32 languages. Setup itself is translated into 18 so far (right to left for Arabic and Hebrew), and GNOME apps, Jace Browser and most others follow the system language.
-- **Reset this computer**: Settings → About can reset just your settings, or remove every account and its files and start Setup again, like a new computer. Apps stay installed.
+- **Reset this computer**: Settings → About can reset just your settings, or remove every account and its files and start Setup again, like a new computer: apps you added are removed too (Jace OS's own apps stay).
 - **Clipboard manager**: Win+V shows everything you copied, pictures included. Search it, pin things to keep them, and click to paste.
 - **A top bar you can change**: Settings → Top bar turns modules on and off (Now Playing, weather, processor, memory, Do not disturb, Keep awake and more), moves it to the bottom, and sets the clock (12 or 24 hours, seconds, date). Click the clock (or Win+N) for the calendar.
 - **Face unlock**: Settings → Face unlock sets up Howdy, the Linux Windows Hello, for the lock screen, sign-in and password prompts. Best with an infrared camera.
