@@ -37,5 +37,8 @@ conf="${XDG_CONFIG_HOME:-$HOME/.config}/jace-os"
 jace-migrate >/dev/null 2>&1 &
 # Empties old trash (if you turned that on) and warns when a drive is nearly full.
 jace-storage --auto >/dev/null 2>&1 &
+# Signs you in to Jace by itself if Jace OS's sign-in window is signed in to Jace
+# (never right after you signed out on purpose).
+jace-signin --silent >/dev/null 2>&1 &
 # Cloud sync with your Jace account (if you turned it on in Settings → Jace account).
 jace-sync --daemon >/dev/null 2>&1 &

@@ -145,6 +145,17 @@ def _token() -> str:
     acct = account.load()
     if not acct:
         raise SyncError("Sign in with Jace to use sync.")
+    # Sync belongs to the Jace account it was turned on with: with another account switched in,
+    # it waits (it never mixes one account's things into another's).
+    state = load_state()
+    if state.get("enabled") or has_key():
+        owner = state.get("account")
+        if not owner:
+            state["account"] = acct["sub"]
+            save_state(state)
+        elif owner != acct["sub"]:
+            raise SyncError("Sync is paused: it's on for another Jace account. Switch back to that "
+                            "account, or turn sync off and on again to use this one.")
     return acct["access_token"]
 
 
@@ -243,13 +254,23 @@ def unlock(passphrase: str, create: bool = True) -> bytes:
 def set_passphrase(passphrase: str):
     """Uses this passphrase here (see unlock), keeping the key readable only by you."""
     _save_key(unlock(passphrase))
+    acct = account.load()
+    if acct:
+        state = load_state()
+        state["account"] = acct["sub"]
+        save_state(state)
 
 
 def forget(everywhere: bool = False):
     """Turns sync off here. everywhere=True also deletes Jace OS's sync data in Jace (not Jace
     Browser's), for starting over with a new passphrase."""
     state = load_state()
+    if everywhere:
+        acct = account.load()
+        if state.get("account") and acct and state["account"] != acct["sub"]:
+            raise SyncError("Switch to the Jace account sync is on for to delete its synced data.")
     state.update(enabled=False, versions={}, hashes={})
+    state.pop("account", None)
     save_state(state)
     _key_file().unlink(missing_ok=True)
     if everywhere:

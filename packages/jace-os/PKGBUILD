@@ -20,6 +20,8 @@ depends=(
   python python-gobject gtk4 libadwaita gtk4-layer-shell gsettings-desktop-schemas dconf
   # Setup shows the Sign in with Jace page itself; cloud sync encrypts with AES-GCM
   webkitgtk-6.0 python-cryptography
+  # Jace account sign-ins are kept in your keyring
+  gnome-keyring libsecret
   # Login screen and boot splash
   greetd greetd-regreet cage plymouth
   # System

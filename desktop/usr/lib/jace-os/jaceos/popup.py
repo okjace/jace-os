@@ -27,7 +27,7 @@ def make_layer(window: Gtk.Window, namespace: str, fallback_size=(640, 680)) -> 
     """Turns a window into a full-screen overlay layer. False if layer-shell isn't available."""
     window.set_decorated(False)
     from gi.repository import Gdk
-    wayland = type(Gdk.Display.get_default()).__name__ == "WaylandDisplay"
+    wayland = type(Gdk.Display.get_default()).__name__.endswith("WaylandDisplay")
     if LayerShell and wayland and LayerShell.is_supported():
         LayerShell.init_for_window(window)
         LayerShell.set_namespace(window, namespace)

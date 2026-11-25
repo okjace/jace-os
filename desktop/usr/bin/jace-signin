@@ -1,0 +1,3 @@
+#!/bin/sh
+# Jace OS's "Sign in with Jace" window and the welcome animation (jaceos/signin.py).
+exec /usr/lib/jace-os/run-popup signin "$@"

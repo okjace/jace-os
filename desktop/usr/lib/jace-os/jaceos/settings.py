@@ -365,6 +365,7 @@ class SettingsWindow(Adw.ApplicationWindow):
         page.add(g)
 
         if acct:
+            page.add(self._accounts_group())
             page.add(group("This computer", None,
                            switch_row("Use my Jace name and picture", "For this computer's account, the login "
                                       "screen and the top bar", profile.sync_on(), self._set_profile_sync)))
@@ -372,7 +373,7 @@ class SettingsWindow(Adw.ApplicationWindow):
                            link_row("Open your Jace profile", JACE_URL, f"{JACE_URL}/account", "web-browser-symbolic"),
                            button_row("Refresh", "Update your name and picture from Jace", "Refresh",
                                       lambda: background(account.refresh_profile, lambda _r: self.reload())),
-                           button_row("Sign out", "Removes your Jace account from this computer", "Sign out",
+                           button_row("Sign out", "Removes this Jace account from this computer", "Sign out",
                                       self._sign_out)))
             self._sync_groups(page)
         else:
@@ -386,6 +387,8 @@ class SettingsWindow(Adw.ApplicationWindow):
             g2 = Adw.PreferencesGroup()
             g2.add(box)
             page.add(g2)
+            if account.accounts():
+                page.add(self._accounts_group())
             page.add(group("No account yet?", None,
                            link_row("Create a Jace account", "It's free", f"{JACE_URL}/sign-up", "list-add-symbolic")))
 
@@ -671,19 +674,74 @@ class SettingsWindow(Adw.ApplicationWindow):
         d.connect("response", lambda _d, r: r == "delete" and go())
         d.present(self)
 
+    def _accounts_group(self):
+        """The account switcher: every Jace account on this computer. Switch is instant (each keeps
+        its own sign-in); Remove forgets one; Add another opens Jace's account picker."""
+        others = [a for a in account.accounts() if not a["current"]]
+        g = group("Accounts on this computer", "Switch to another Jace account without signing in again."
+                  if others else "Add another Jace account to switch between them.")
+        for a in others:
+            u = a["user"]
+            name = u.get("name") or u.get("username") or "Jace"
+            row = plain_row(title=name, subtitle="Sign in again" if a["expired"] else f"@{u.get('username', '')}")
+            av = Adw.Avatar(size=36, show_initials=True, text=name)
+            if a["picture"]:
+                try:
+                    av.set_custom_image(Gdk.Texture.new_from_filename(a["picture"]))
+                except GLib.Error:
+                    pass
+            row.add_prefix(av)
+            switch = Gtk.Button(label="Sign in" if a["expired"] else "Switch", valign=Gtk.Align.CENTER,
+                                css_classes=["suggested-action"])
+            switch.connect("clicked", lambda _b, sub=a["sub"]: self._run_signin("--switch", sub))
+            remove = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER,
+                                tooltip_text="Remove from this computer", css_classes=["flat"])
+            remove.connect("clicked", lambda _b, sub=a["sub"], n=name: self._remove_account(sub, n))
+            row.add_suffix(switch)
+            row.add_suffix(remove)
+            g.add(row)
+        add = plain_row(title="Add another Jace account", activatable=True)
+        add.add_prefix(Gtk.Image(icon_name="list-add-symbolic"))
+        add.connect("activated", lambda *_: self._run_signin("--add"))
+        g.add(add)
+        if others:
+            g.add(button_row("Sign out of all", "Removes every Jace account from this computer", "Sign out of all",
+                             self._sign_out_all))
+        return g
+
+    def _run_signin(self, *args):
+        """Jace OS's sign-in window (or a switch, with the welcome animation); this page updates after."""
+        def work():
+            subprocess.run(["jace-signin", *args])
+        background(work, lambda _r: self.current == "account" and self.reload())
+
+    def _remove_account(self, sub, name):
+        account.remove(sub)
+        self.toast(f"Removed {name}")
+        self.reload()
+
+    def _sign_out_all(self):
+        d = Adw.AlertDialog(heading="Sign out of all accounts?",
+                            body="Every Jace account is removed from this computer. You can sign in again any time.")
+        d.add_response("cancel", "Cancel")
+        d.add_response("out", "Sign out of all")
+        d.set_response_appearance("out", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.connect("response", lambda _d, r: r == "out" and (account.sign_out_all(), self.toast("Signed out"),
+                                                            self.reload()))
+        d.present(self)
+
     def _sign_in(self, button):
         button.set_sensitive(False)
-        self.signin_status.set_label("Finish signing in in your browser…")
-        background(account.sign_in, lambda r: self._signed_in(r, button))
+        self.signin_status.set_label("Finish signing in in the Sign in with Jace window…")
 
-    def _signed_in(self, result, button):
-        if isinstance(result, Exception):
+        def done(_r):
             button.set_sensitive(True)
-            self.signin_status.set_label(f"Couldn't sign in: {result}")
-            return
-        self.present()
-        self.toast(f"Signed in as {account.display_name(result)}")
-        self.reload()
+            self.signin_status.set_label("")
+            if account.load():
+                self.present()
+                self.toast(f"Signed in as {account.display_name(account.load())}")
+                self.reload()
+        background(lambda: subprocess.run(["jace-signin"]), done)
 
     def _sign_out(self):
         account.sign_out()
